@@ -1,3 +1,4 @@
+import { parseIncomingTransferAmount } from "@/lib/payment-incoming-amount";
 import { handlePaymentWebhookPostgres } from "@/lib/supabase/payment-webhook-pg";
 
 export const runtime = "nodejs";
@@ -26,16 +27,23 @@ function normalizeCompact(v: unknown) {
   return normalizeText(v).replace(/[^A-Z0-9]/g, "");
 }
 
-function toAmount(v: unknown) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function paymentAmountRequired() {
   const n = Number(
     process.env.PAYMENT_AMOUNT || process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000,
   );
   return Number.isFinite(n) && n > 0 ? n : 299000;
+}
+
+/** Mức tiền cho CK nâng cấp (pending_upgrade). Mặc định = kích hoạt nếu không cấu hình riêng. */
+function paymentUpgradeAmountRequired() {
+  const raw =
+    process.env.PAYMENT_UPGRADE_AMOUNT ||
+    process.env.NEXT_PUBLIC_PAYMENT_UPGRADE_AMOUNT ||
+    process.env.PAYMENT_AMOUNT ||
+    process.env.NEXT_PUBLIC_PAYMENT_AMOUNT ||
+    299000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : paymentAmountRequired();
 }
 
 function parseAcceptedApiKeys() {
@@ -88,7 +96,7 @@ export async function POST(request: Request) {
     );
     const paymentCode = normalizeText(payload.code);
     const paymentCodeCompact = normalizeCompact(paymentCode);
-    const amount = toAmount(payload.transferAmount ?? payload.amount);
+    const amount = parseIncomingTransferAmount(payload.transferAmount ?? payload.amount);
     const txnId = normalizeText(
       payload.id || payload.txnId || payload.referenceCode || payload.code || `NOID-${Date.now()}`,
     );
@@ -97,7 +105,8 @@ export async function POST(request: Request) {
       return Response.json({ success: false, reason: "missing_fields" }, { status: 400 });
     }
 
-    const required = paymentAmountRequired();
+    const requiredPending = paymentAmountRequired();
+    const requiredUpgrade = paymentUpgradeAmountRequired();
 
     const body = await handlePaymentWebhookPostgres(
       payload,
@@ -106,7 +115,8 @@ export async function POST(request: Request) {
       paymentCodeCompact,
       amount,
       txnId,
-      required,
+      requiredPending,
+      requiredUpgrade,
     );
     return Response.json(body);
   } catch (error) {

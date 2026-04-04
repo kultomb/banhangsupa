@@ -85,7 +85,8 @@ export async function handlePaymentWebhookPostgres(
   paymentCodeCompact: string,
   amount: number,
   txnId: string,
-  required: number,
+  requiredPending: number,
+  requiredUpgrade: number,
 ): Promise<Record<string, unknown>> {
   const admin = createSupabaseAdminClient();
 
@@ -131,7 +132,7 @@ export async function handlePaymentWebhookPostgres(
     paymentCodeCompact,
     transferContent,
     amount,
-    required,
+    requiredPending,
   );
   let isUpgrade = false;
   if (!match) {
@@ -141,7 +142,7 @@ export async function handlePaymentWebhookPostgres(
       paymentCodeCompact,
       transferContent,
       amount,
-      required,
+      requiredUpgrade,
     );
     isUpgrade = !!match;
   }
@@ -158,13 +159,16 @@ export async function handlePaymentWebhookPostgres(
         paymentCode,
         transferContent,
         status: statusNote,
+        requiredPending,
+        requiredUpgrade,
       },
     });
     return {
       success: true,
       matched: false,
       hint: statusNote,
-      requiredAmount: required,
+      requiredAmount: requiredPending,
+      requiredUpgradeAmount: requiredUpgrade,
       receivedAmount: amount,
     };
   }
