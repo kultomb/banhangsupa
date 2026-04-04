@@ -65,8 +65,10 @@ export class SupabaseAuthClient implements IAuthClient {
   }
 
   onAuthStateChanged(callback: (user: AuthSessionUser | null) => void): () => void {
-    const { data } = this.sb.auth.onAuthStateChange((_event, session) => {
+    const { data } = this.sb.auth.onAuthStateChange((event, session) => {
       this.setSnapshot(session);
+      /** Tránh login (và trang khác) chạy lại pipeline restore mỗi lần refresh token → kẹt spinner / gọi API lặp. */
+      if (event === "TOKEN_REFRESHED") return;
       callback(this.sessionSnapshot);
     });
     return () => data.subscription.unsubscribe();

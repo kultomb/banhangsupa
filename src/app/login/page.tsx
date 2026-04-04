@@ -87,7 +87,8 @@ function LoginContent() {
   const [resetSending, setResetSending] = useState(false);
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetError, setResetError] = useState("");
-  const [authBootstrapping, setAuthBootstrapping] = useState(true);
+  /** Mặc định false: không kẹt spinner khi chưa có phiên hoặc listener chậm; bật true khi bắt đầu restore. */
+  const [authBootstrapping, setAuthBootstrapping] = useState(false);
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
   const nextParamRef = useRef<string | null>(null);
@@ -124,7 +125,7 @@ function LoginContent() {
       const safetyId = window.setTimeout(() => {
         sessionRestoreLockRef.current = false;
         setAuthBootstrapping(false);
-      }, 20000);
+      }, 25000);
       try {
         const nextPath = safeInternalNextPath(nextParamRef.current);
         let profileTimeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -152,10 +153,22 @@ function LoginContent() {
           registrationTrial: profile.registrationTrial,
         });
         let idToken: string;
+        let tokenTimeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-          idToken = await user.getIdToken();
+          idToken = await (async () => {
+            try {
+              return await Promise.race([
+                user.getIdToken(),
+                new Promise<never>((_, rej) => {
+                  tokenTimeoutId = window.setTimeout(() => rej(new Error("token-timeout")), 8000);
+                }),
+              ]);
+            } finally {
+              if (tokenTimeoutId !== undefined) window.clearTimeout(tokenTimeoutId);
+            }
+          })();
         } catch {
-          setError("Không lấy được token phiên. Thử tải lại trang.");
+          setError("Không lấy được token phiên (hết thời gian hoặc lỗi). Thử tải lại trang.");
           return;
         }
         const sessionOk = await postSessionCookieWithRetries(idToken, {
