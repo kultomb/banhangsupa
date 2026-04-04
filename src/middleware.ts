@@ -18,18 +18,13 @@ export async function middleware(request: NextRequest) {
 
   const verifySession = async (): Promise<{ sub: string; admin?: boolean } | null> => {
     const secret = (process.env.SUPABASE_JWT_SECRET || "").trim();
-    if (!secret) return null;
     return verifySupabaseJwt(token, secret);
   };
 
-  if (!(process.env.SUPABASE_JWT_SECRET || "").trim()) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[middleware] missing SUPABASE_JWT_SECRET", { path });
-    }
-    if (path.startsWith("/api/admin")) {
-      return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
-    }
-    return new NextResponse(null, { status: 503 });
+  if (!(process.env.SUPABASE_JWT_SECRET || "").trim() && process.env.NODE_ENV !== "production") {
+    console.warn(
+      "[middleware] SUPABASE_JWT_SECRET trống — token HS256 legacy sẽ không verify; token ES256 (Signing Keys) dùng JWKS.",
+    );
   }
 
   if (!token) {
