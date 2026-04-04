@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
-import { auth, rtdb } from "@/lib/backend/client";
 import RequireAuth from "@/components/RequireAuth";
 import { postSessionCookieWithRetries } from "@/lib/client-auth";
+import { getAuthClient } from "@/lib/db";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import { isEffectiveTrialAccount } from "@/lib/trial-shop";
 
 function UpgradeForm() {
@@ -17,24 +16,13 @@ function UpgradeForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = getAuthClient().onAuthStateChanged((user) => {
       if (!user) return;
-      get(ref(rtdb, `users/${user.uid}`))
-        .then((snap) => {
-          const v = (snap.val() || {}) as {
-            shopSlug?: string;
-            registrationTrial?: unknown;
-            paymentStatus?: string;
-            upgradeTargetSlug?: string;
-          };
-          const slug = String(v.shopSlug || "");
+      void fetchUserProfileClient(user.uid)
+        .then((p) => {
+          const slug = String(p.shopSlug || "");
           setCurrentShop(slug);
-          const reg =
-            v.registrationTrial === true || v.registrationTrial === "true"
-              ? true
-              : v.registrationTrial === false || v.registrationTrial === "false"
-                ? false
-                : null;
+          const reg = p.registrationTrial;
           if (!slug) {
             router.replace("/");
             return;
@@ -43,7 +31,7 @@ function UpgradeForm() {
             router.replace(`/${slug}`);
             return;
           }
-          if (v.paymentStatus === "pending_upgrade" && v.upgradeTargetSlug) {
+          if (p.paymentStatus === "pending_upgrade" && p.upgradeTargetSlug) {
             router.replace(`/payment-required?shop=${encodeURIComponent(slug)}`);
           }
         })
@@ -57,7 +45,7 @@ function UpgradeForm() {
     setError("");
     setLoading(true);
     try {
-      const user = auth.currentUser;
+      const user = getAuthClient().getCurrentUser();
       if (!user) {
         router.replace("/login");
         return;

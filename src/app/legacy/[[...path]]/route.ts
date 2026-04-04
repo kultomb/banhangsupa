@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { adminAuth } from "@/lib/backend/server";
+import { getAdminAuthService } from "@/lib/db/server";
 import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
 
 const LEGACY_ROOT = path.resolve(process.cwd(), "public", "legacy");
@@ -40,7 +40,7 @@ function getCookieValue(request: Request, name: string) {
 async function resolveShopSlugFromSession(request: Request) {
   const token = String(getCookieValue(request, SESSION_COOKIE_NAME) || "").trim();
   if (!token) return "";
-  const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
+  const decoded = await getAdminAuthService().verifyIdToken(token).catch(() => null);
   if (!decoded?.uid) return "";
   return resolveUserShopSlugWithHeal(decoded.uid);
 }

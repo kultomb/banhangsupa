@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
 import { verifyFirebaseIdToken } from "@/lib/edge-firebase-jwt";
+import { verifySupabaseJwt } from "@/lib/edge-supabase-jwt";
 
 function adminUidSet(): Set<string> {
   return new Set(
@@ -13,18 +15,41 @@ function adminUidSet(): Set<string> {
 }
 
 export async function middleware(request: NextRequest) {
-  const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
   const path = request.nextUrl.pathname;
   const token = request.cookies.get("ha_session_token")?.value?.trim() ?? "";
 
-  if (!projectId) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[middleware] missing NEXT_PUBLIC_FIREBASE_PROJECT_ID", { path });
+  const verifySession = async (): Promise<{ sub: string; admin?: boolean } | null> => {
+    if (isSupabaseDbProvider()) {
+      const secret = (process.env.SUPABASE_JWT_SECRET || "").trim();
+      if (!secret) return null;
+      return verifySupabaseJwt(token, secret);
     }
-    if (path.startsWith("/api/admin")) {
-      return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
+    const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
+    if (!projectId) return null;
+    return verifyFirebaseIdToken(token, projectId);
+  };
+
+  if (isSupabaseDbProvider()) {
+    if (!(process.env.SUPABASE_JWT_SECRET || "").trim()) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[middleware] missing SUPABASE_JWT_SECRET", { path });
+      }
+      if (path.startsWith("/api/admin")) {
+        return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
+      }
+      return new NextResponse(null, { status: 503 });
     }
-    return new NextResponse(null, { status: 503 });
+  } else {
+    const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
+    if (!projectId) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[middleware] missing NEXT_PUBLIC_FIREBASE_PROJECT_ID", { path });
+      }
+      if (path.startsWith("/api/admin")) {
+        return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
+      }
+      return new NextResponse(null, { status: 503 });
+    }
   }
 
   if (!token) {
@@ -39,7 +64,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  const decoded = await verifyFirebaseIdToken(token, projectId);
+  const decoded = await verifySession();
   if (!decoded) {
     if (process.env.NODE_ENV !== "production") {
       console.info("[middleware] redirect login: invalid/expired token", { path });
@@ -60,7 +85,6 @@ export async function middleware(request: NextRequest) {
     if (path.startsWith("/api/admin")) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    /** Giữ URL /admin nhưng hiển thị trang 404 giao diện chung (không lộ cấu hình). */
     return NextResponse.rewrite(new URL("/admin-unauthorized", request.url));
   }
 

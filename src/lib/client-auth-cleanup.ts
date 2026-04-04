@@ -1,11 +1,10 @@
 "use client";
 
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
 
 export async function logoutAndCleanupClientSession() {
   try {
-    await signOut(auth);
+    await getAuthClient().signOut();
   } catch {
     // Ignore sign-out failures and continue cleanup.
   }

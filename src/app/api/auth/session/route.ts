@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { resetLoginRateForEmail } from "@/lib/backend/login-rate-limit";
-import { adminAuth } from "@/lib/backend/server";
-import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
+import { getAdminAuthService, getUserShopServerService } from "@/lib/db/server";
+import { normalizeShopSlug } from "@/lib/backend/userShopSlug";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     if (!idToken) {
       return new Response("Missing token", { status: 400 });
     }
-    const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
+    const decoded = await getAdminAuthService().verifyIdToken(idToken).catch(() => null);
     if (!decoded?.uid) {
       return new Response("Invalid token", { status: 401 });
     }
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     if (email) {
       void resetLoginRateForEmail(request, email);
     }
-    const profileShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
+    const profileShopSlug = await getUserShopServerService().resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));
     const shopSlug = profileShopSlug || requestShopSlug;
     const isHttps = request.headers.get("x-forwarded-proto") === "https" || process.env.NODE_ENV === "production";
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       secure: isHttps,
       sameSite: "lax",
       path: "/",
-      // Firebase ID token is short-lived; keep cookie TTL close to avoid stale-token loops.
+      // JWT (Firebase ID token hoặc Supabase access_token) ngắn hạn — cookie gần với TTL token tránh lặp 401.
       maxAge: 60 * 55,
     });
     if (shopSlug) {

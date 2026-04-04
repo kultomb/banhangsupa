@@ -1,9 +1,8 @@
 "use client";
 
-import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import { useEffect, useState } from "react";
-import { auth, rtdb } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   getEffectiveTrialExpiresAt,
   getTrialShopPrefix,
@@ -27,35 +26,30 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
       if (quick === "1") setVisible(true);
     } catch (_) {}
 
-    unsub = onAuthStateChanged(auth, (user) => {
+    unsub = getAuthClient().onAuthStateChanged((user) => {
       if (!user) {
         setVisible(false);
         setExpiresAt(null);
         return;
       }
-      get(ref(rtdb, `users/${user.uid}`))
-        .then((snap) => {
-          const v = (snap.val() || {}) as {
-            shopSlug?: string;
-            registrationTrial?: unknown;
-            trialExpiresAt?: unknown;
-            createdAt?: unknown;
-          };
-          const userSlug = String(v.shopSlug || "").trim();
+      void fetchUserProfileClient(user.uid)
+        .then((p) => {
+          const userSlug = String(p.shopSlug || "").trim();
           if (!userSlug || userSlug !== shopSlug) {
             setVisible(false);
             setExpiresAt(null);
             return;
           }
-          const reg =
-            v.registrationTrial === true ? true : v.registrationTrial === false ? false : null;
+          const reg = p.registrationTrial;
           const trial = isEffectiveTrialAccount(reg, userSlug, getTrialShopPrefix());
           syncTrialUiSessionFlag({ shopSlug: userSlug, registrationTrial: reg });
           setVisible(trial);
-          const te = v.trialExpiresAt;
-          const n = typeof te === "number" ? te : Number(te);
-          const ce = typeof v.createdAt === "number" ? v.createdAt : Number(v.createdAt);
-          setExpiresAt(getEffectiveTrialExpiresAt(Number.isFinite(n) && n > 0 ? n : null, Number.isFinite(ce) && ce > 0 ? ce : null));
+          setExpiresAt(
+            getEffectiveTrialExpiresAt(
+              p.trialExpiresAtMs && p.trialExpiresAtMs > 0 ? p.trialExpiresAtMs : null,
+              p.createdAtMs && p.createdAtMs > 0 ? p.createdAtMs : null,
+            ),
+          );
         })
         .catch(() => setVisible(false));
     });
@@ -78,66 +72,28 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
         borderBottom: "1px solid #ef4444",
       }
     : {
-        color: "#78350f",
-        background: "linear-gradient(90deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%)",
-        borderBottom: "1px solid #f59e0b",
+        color: "#065f46",
+        background: "linear-gradient(90deg, #ecfdf5 0%, #d1fae5 50%, #ecfdf5 100%)",
+        borderBottom: "1px solid #34d399",
       };
 
   return (
     <div
       role="status"
       style={{
-        flexShrink: 0,
-        width: "100%",
-        padding: "8px 14px",
+        ...barStyle,
+        padding: "10px 14px",
         fontSize: 13,
         fontWeight: 600,
         textAlign: "center",
-        boxSizing: "border-box",
-        pointerEvents: "none",
-        ...barStyle,
+        lineHeight: 1.45,
       }}
     >
-      <span style={{ pointerEvents: "auto" }}>
-        {expired ? (
-          <>
-            Bản dùng thử của bạn đã hết hạn.{" "}
-            <a
-              href="/upgrade"
-              target="_top"
-              rel="noopener noreferrer"
-              style={{
-                color: "#991b1b",
-                fontWeight: 800,
-                textDecoration: "underline",
-                textUnderlineOffset: 2,
-              }}
-            >
-              Nâng cấp tài khoản
-            </a>{" "}
-            để tiếp tục trải nghiệm nhé!
-          </>
-        ) : (
-          <>
-            🧪 Đang ở chế độ dùng thử — dữ liệu có thể bị xóa hoặc hết hạn; không dùng cho vận hành thật.
-            {daysLeft != null ? ` · Còn khoảng ${daysLeft} ngày.` : null}
-            {" · "}
-            <a
-              href="/upgrade"
-              target="_top"
-              rel="noopener noreferrer"
-              style={{
-                color: "#92400e",
-                fontWeight: 800,
-                textDecoration: "underline",
-                textUnderlineOffset: 2,
-              }}
-            >
-              Nâng cấp tài khoản
-            </a>
-          </>
-        )}
-      </span>
+      {expired
+        ? "Gói dùng thử đã hết hạn. Nâng cấp để tiếp tục dùng đầy đủ."
+        : daysLeft != null
+          ? `Bạn đang dùng thử — còn khoảng ${daysLeft} ngày.`
+          : "Bạn đang dùng thử — hãy nâng cấp khi sẵn sàng."}
     </div>
   );
 }

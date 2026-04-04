@@ -3,14 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import {
-  EmailAuthProvider,
-  onAuthStateChanged,
-  reauthenticateWithCredential,
-  updatePassword,
-} from "firebase/auth";
-import { get, ref } from "firebase/database";
-import { auth, rtdb } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
@@ -29,15 +23,19 @@ export default function AccountClient() {
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    const unsub = getAuthClient().onAuthStateChanged(async (user) => {
       if (!user) {
         setEmail("");
         setLoading(false);
         return;
       }
       setEmail(user.email || "");
-      const snap = await get(ref(rtdb, `users/${user.uid}/shopSlug`));
-      if (snap.exists()) setShop(String(snap.val() || ""));
+      try {
+        const p = await fetchUserProfileClient(user.uid);
+        if (p.shopSlug) setShop(p.shopSlug);
+      } catch {
+        /* keep query shop */
+      }
       setLoading(false);
     });
     return () => unsub();
@@ -47,7 +45,7 @@ export default function AccountClient() {
     e.preventDefault();
     setError("");
     setMessage("");
-    const user = auth.currentUser;
+    const user = getAuthClient().getCurrentUser();
     if (!user || !user.email) {
       setError("Bạn chưa đăng nhập hoặc phiên đã hết hạn. Vui lòng đăng nhập lại.");
       return;
@@ -65,9 +63,9 @@ export default function AccountClient() {
     setError("");
     setMessage("");
     try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
+      const authClient = getAuthClient();
+      await authClient.reauthenticateWithPassword(user, currentPassword);
+      await authClient.updatePassword(user, newPassword);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");

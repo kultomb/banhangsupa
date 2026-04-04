@@ -1,16 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
 import { useEffect } from "react";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 
 export default function AppPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    const unsub = getAuthClient().onAuthStateChanged(async (user) => {
       if (!user) {
         router.replace("/login");
         return;

@@ -35,6 +35,9 @@ yarn-error.log*
 !.env.example
 *.env
 
+# docs — không đẩy lên remote theo yêu cầu dự án
+*.md
+
 # vercel
 .vercel
 

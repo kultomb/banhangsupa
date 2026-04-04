@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient, getDbProvider } from "@/lib/db";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
-import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 
 export default function ResetPasswordClient() {
@@ -13,7 +12,12 @@ export default function ResetPasswordClient() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
   const oobCode = searchParams.get("oobCode");
-  const isValidLink = mode === "resetPassword" && !!oobCode;
+  const recoveryCode = searchParams.get("code") || oobCode;
+  const recoveryType = searchParams.get("type");
+  const isValidLink =
+    getDbProvider() === "supabase"
+      ? Boolean(recoveryCode && recoveryType === "recovery")
+      : mode === "resetPassword" && Boolean(oobCode);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,7 +34,8 @@ export default function ResetPasswordClient() {
     e.preventDefault();
     setError("");
     setMessage("");
-    if (!oobCode) {
+    const code = getDbProvider() === "supabase" ? recoveryCode : oobCode;
+    if (!code) {
       setError("Thiếu mã xác thực đặt lại mật khẩu.");
       return;
     }
@@ -46,8 +51,13 @@ export default function ResetPasswordClient() {
 
     setLoading(true);
     try {
-      await verifyPasswordResetCode(auth, oobCode);
-      await confirmPasswordReset(auth, oobCode, password);
+      const authClient = getAuthClient();
+      if (getDbProvider() === "supabase") {
+        await authClient.confirmPasswordReset(code, password);
+      } else {
+        await authClient.verifyPasswordResetCode(code);
+        await authClient.confirmPasswordReset(code, password);
+      }
       setPassword("");
       setConfirmPassword("");
       setMessage("Đổi mật khẩu thành công.");

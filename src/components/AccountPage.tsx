@@ -1,20 +1,12 @@
 "use client";
 
-import { auth } from "@/lib/backend/client";
-import {
-  EmailAuthProvider,
-  onAuthStateChanged,
-  reauthenticateWithCredential,
-  signOut,
-  updatePassword,
-} from "firebase/auth";
-import { get, ref } from "firebase/database";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { getAuthClient } from "@/lib/db";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
-import { rtdb } from "@/lib/backend/client";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 
 type AccountPageProps = {
   shop?: string;
@@ -35,12 +27,12 @@ export default function AccountPage({ shop }: AccountPageProps) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    const unsub = getAuthClient().onAuthStateChanged(async (user) => {
       setEmail(user?.email || "");
       if (user?.uid) {
         try {
-          const snap = await get(ref(rtdb, `users/${user.uid}/shopDisplayName`));
-          setShopDisplayName(snap.exists() ? String(snap.val() || "").trim() : "");
+          const p = await fetchUserProfileClient(user.uid);
+          setShopDisplayName(p.shopDisplayName || "");
         } catch {
           setShopDisplayName("");
         }
@@ -54,7 +46,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
-    const currentUser = auth.currentUser;
+    const currentUser = getAuthClient().getCurrentUser();
     if (!currentUser || !currentUser.email) {
       setMessageType("error");
       setMessage("Chưa đăng nhập. Vui lòng đăng nhập lại.");
@@ -75,9 +67,9 @@ export default function AccountPage({ shop }: AccountPageProps) {
     setLoading(true);
     setMessage("");
     try {
-      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
-      await reauthenticateWithCredential(currentUser, credential);
-      await updatePassword(currentUser, newPassword);
+      const authClient = getAuthClient();
+      await authClient.reauthenticateWithPassword(currentUser, currentPassword);
+      await authClient.updatePassword(currentUser, newPassword);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -95,7 +87,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
   }
 
   async function handleLogout() {
-    await signOut(auth);
+    await getAuthClient().signOut();
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
     router.replace("/login");
   }

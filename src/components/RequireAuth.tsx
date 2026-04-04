@@ -1,7 +1,7 @@
 "use client";
 
-import { auth } from "@/lib/backend/client";
-import { onIdTokenChanged, type User } from "firebase/auth";
+import { getAuthClient } from "@/lib/db";
+import type { AuthSessionUser } from "@/lib/db/types";
 import { ReactNode, useEffect, useState } from "react";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -99,7 +99,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
 
     const syncIdTokenToCookie = async (shopSlug: string): Promise<boolean> => {
       try {
-        const user = auth.currentUser;
+        const user = getAuthClient().getCurrentUser();
         if (!user) return false;
         const slug = String(shopSlug || "").trim();
         let token = await user.getIdToken();
@@ -121,7 +121,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       return fetchUserProfileClient(uid);
     };
 
-    const processSignedInUser = async (user: User) => {
+    const processSignedInUser = async (user: AuthSessionUser) => {
       if (processingUid === user.uid) return;
       processingUid = user.uid;
       try {
@@ -157,7 +157,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
           return;
         }
 
-        if (!paymentAllowsAppAccess(profile.paymentStatus)) {
+        if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
           const target = toPaymentRequiredPath(shopSlug);
           try {
             if (window.top && window.top !== window) {
@@ -186,14 +186,15 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     };
 
     void (async () => {
-      await auth.authStateReady();
+      const authClient = getAuthClient();
+      await authClient.authStateReady();
       if (disposed) return;
 
       /** Trang chỉ bọc children (vd. /upgrade, /account): đã đăng nhập Firebase thì hiện UI ngay; đồng bộ cookie / RTDB chạy nền. */
       const simpleClientGate = !renderShop && pathShopFromUrl === undefined;
-      const bootUser = auth.currentUser;
+      const bootUser = authClient.getCurrentUser();
 
-      unsub = onIdTokenChanged(auth, (user) => {
+      unsub = authClient.onIdTokenChanged((user) => {
         settled = true;
         if (logoutDebounce !== undefined) {
           window.clearTimeout(logoutDebounce);
@@ -205,7 +206,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
           logoutDebounce = window.setTimeout(() => {
             logoutDebounce = undefined;
             if (disposed) return;
-            if (auth.currentUser) return;
+            if (getAuthClient().getCurrentUser()) return;
             setSessionBridgeFailed(false);
             setAuthed(false);
             setReady(true);
@@ -230,7 +231,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
 
     const fallbackTimer = window.setTimeout(() => {
       if (settled || disposed) return;
-      const user = auth.currentUser;
+      const user = getAuthClient().getCurrentUser();
       if (!user) {
         setAuthed(false);
         setReady(true);

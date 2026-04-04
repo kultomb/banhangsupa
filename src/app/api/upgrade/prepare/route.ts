@@ -1,4 +1,3 @@
-import { adminAuth, adminDb } from "@/lib/backend/server";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { normalizeShopSlug, resolveUserShopContext } from "@/lib/backend/userShopSlug";
 import { randomBytes } from "crypto";
@@ -7,6 +6,11 @@ import {
   isEffectiveTrialAccount,
   productionSlugFromTrialSlug,
 } from "@/lib/trial-shop";
+
+import { adminDb } from "@/lib/backend/server";
+import { getDbProvider } from "@/lib/db/provider";
+import { upgradePreparePostgres } from "@/lib/supabase/upgrade-prepare-pg";
+import { getAdminAuthService } from "@/lib/db/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "missing_token" }, { status: 400 });
     }
 
-    const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
+    const decoded = await getAdminAuthService().verifyIdToken(idToken).catch(() => null);
     if (!decoded?.uid) {
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
@@ -52,6 +56,20 @@ export async function POST(request: Request) {
     }
     if (targetSlug === fromSlug) {
       return Response.json({ error: "same_slug" }, { status: 400 });
+    }
+
+    if (getDbProvider() === "supabase") {
+      const r = await upgradePreparePostgres({ uid, ctx, createPaymentRef: createUpgradePaymentRef });
+      if ("error" in r) {
+        return Response.json({ error: r.error }, { status: r.status });
+      }
+      return Response.json({
+        ok: true,
+        fromSlug: r.fromSlug,
+        targetSlug: r.targetSlug,
+        paymentRef: r.paymentRef,
+        email: r.email,
+      });
     }
 
     const db = adminDb();

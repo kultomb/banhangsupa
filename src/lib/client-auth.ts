@@ -1,7 +1,7 @@
 "use client";
 
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
+import { isProfilePaidForAppAccess } from "@/lib/trial-shop";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 
@@ -67,10 +67,15 @@ export function normalizeShopSlugClient(raw: string): string {
   return s.toLowerCase().replace(/[^a-z0-9-]/g, "");
 }
 
-/** Cho phép vào POS: đã kích hoạt hoặc đang chờ CK nâng cấp từ trial (vẫn dùng shop thử). */
-export function paymentAllowsAppAccess(paymentStatus?: string) {
-  const s = String(paymentStatus || "").trim();
-  return s === "active" || s === "pending_upgrade";
+/** Cho phép vào POS: active, chờ CK nâng cấp, hoặc trial bootstrap (pending + registration_trial). */
+export function paymentAllowsAppAccess(
+  paymentStatus?: string,
+  registrationTrial?: boolean | null,
+) {
+  return isProfilePaidForAppAccess({
+    paymentStatus: String(paymentStatus || ""),
+    registrationTrial: registrationTrial ?? null,
+  });
 }
 
 /**
@@ -120,7 +125,7 @@ export async function postSessionCookieWithRetries(
  */
 export async function revokeAllFirebaseSessionsThenSignOut(): Promise<{ revokeServerOk: boolean }> {
   let revokeServerOk = false;
-  const user = auth.currentUser;
+  const user = getAuthClient().getCurrentUser();
   if (user) {
     try {
       const idToken = await user.getIdToken(true);
@@ -133,9 +138,9 @@ export async function revokeAllFirebaseSessionsThenSignOut(): Promise<{ revokeSe
     } catch {
       revokeServerOk = false;
     }
-    await signOut(auth).catch(() => undefined);
+    await getAuthClient().signOut().catch(() => undefined);
   } else {
-    await signOut(auth).catch(() => undefined);
+    await getAuthClient().signOut().catch(() => undefined);
   }
   await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
   clearClientUserState({ preserveLegacyHostedPosCache: true });
@@ -144,7 +149,7 @@ export async function revokeAllFirebaseSessionsThenSignOut(): Promise<{ revokeSe
 
 export async function forceLogoutMissingShop(redirectUrl = LOGIN_REDIRECT) {
   try {
-    await signOut(auth);
+    await getAuthClient().signOut();
   } catch {
     // Continue cleanup even when Firebase sign-out fails.
   }

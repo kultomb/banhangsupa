@@ -5,8 +5,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
-import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient, getDbProvider } from "@/lib/db";
 import LoginTurnstile, { type LoginTurnstileHandle } from "@/components/LoginTurnstile";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -47,8 +46,17 @@ function getAuthErrorMessage(err: unknown): string {
     case "auth/network-request-failed":
       return "Lỗi kết nối mạng. Vui lòng kiểm tra Internet và thử lại.";
     default:
-      return "Đăng nhập thất bại. Vui lòng thử lại.";
+      break;
   }
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("invalid login credentials") || lower.includes("invalid_credentials")) {
+    return "Email hoặc mật khẩu không đúng.";
+  }
+  if (lower.includes("email rate limit") || lower.includes("too many requests")) {
+    return "Bạn thử sai quá nhiều lần. Vui lòng đợi một lúc rồi thử lại.";
+  }
+  return "Đăng nhập thất bại. Vui lòng thử lại.";
 }
 
 function resetTurnstile(ref: RefObject<LoginTurnstileHandle | null>) {
@@ -100,12 +108,12 @@ function LoginContent() {
     void (async () => {
       try {
         await Promise.race([
-          auth.authStateReady().catch(() => undefined),
+          getAuthClient().authStateReady().catch(() => undefined),
           new Promise<void>((r) => setTimeout(r, capMs)),
         ]);
       } finally {
         if (!active) return;
-        if (!auth.currentUser) setAuthBootstrapping(false);
+        if (!getAuthClient().getCurrentUser()) setAuthBootstrapping(false);
       }
     })();
     return () => {
@@ -115,7 +123,7 @@ function LoginContent() {
 
   useEffect(() => {
     let forcingLogout = false;
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = getAuthClient().onAuthStateChanged((user) => {
       if (submittingRef.current) return;
       if (!user) {
         setAuthBootstrapping(false);
@@ -141,7 +149,7 @@ function LoginContent() {
             shopSlug: profile.shopSlug,
             registrationTrial: profile.registrationTrial,
           });
-          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
+          if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
             router.replace(toPaymentRequiredPath(profile.shopSlug));
             return;
           }
@@ -222,15 +230,15 @@ function LoginContent() {
         return;
       }
 
-      const cred = await signInWithEmailAndPassword(auth, emailTrimmed, password);
-      const profile = await resolveUserProfile(cred.user.uid);
+      const cred = await getAuthClient().signInWithEmailAndPassword(emailTrimmed, password);
+      const profile = await resolveUserProfile(cred.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
         await forceLogoutMissingShop();
         resetTurnstile(turnstileRef);
         setError("Cửa hàng không còn trên hệ thống. Bạn đã được đăng xuất.");
         return;
       }
-      const idToken = await cred.user.getIdToken();
+      const idToken = await cred.getIdToken();
       const sessionOk = await postSessionCookieWithRetries(idToken, {
         shopSlug: profile.shopSlug,
       });
@@ -243,7 +251,7 @@ function LoginContent() {
         shopSlug: profile.shopSlug,
         registrationTrial: profile.registrationTrial,
       });
-      if (!paymentAllowsAppAccess(profile.paymentStatus)) {
+      if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
         router.replace(toPaymentRequiredPath(profile.shopSlug));
         return;
       }
@@ -273,11 +281,7 @@ function LoginContent() {
     setResetSending(true);
     try {
       const actionSettings = buildPasswordResetActionCodeSettings();
-      if (actionSettings) {
-        await sendPasswordResetEmail(auth, target, actionSettings);
-      } else {
-        await sendPasswordResetEmail(auth, target);
-      }
+      await getAuthClient().sendPasswordResetEmail(target, actionSettings);
       setResetSuccess(
         "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
       );
@@ -286,10 +290,14 @@ function LoginContent() {
       const lower = raw.toLowerCase();
       if (
         lower.includes("auth/unauthorized-continue-uri") ||
-        lower.includes("auth/invalid-continue-uri")
+        lower.includes("auth/invalid-continue-uri") ||
+        lower.includes("redirect") ||
+        lower.includes("redirect_uri")
       ) {
         setResetError(
-          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
+          getDbProvider() === "supabase"
+            ? "Không gửi được email: thêm URL trang /reset-password vào Redirect URLs trong Supabase Auth, hoặc liên hệ kỹ thuật."
+            : "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
         );
       } else {
         setResetError("Không gửi được email đặt lại mật khẩu. Thử lại sau giây lát.");

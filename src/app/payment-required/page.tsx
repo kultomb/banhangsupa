@@ -2,14 +2,17 @@
 
 export const dynamic = "force-dynamic";
 
-import { auth, rtdb } from "@/lib/backend/client";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { forceLogoutMissingShop, hasValidShopSlug, postSessionCookieWithRetries } from "@/lib/client-auth";
-import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
+import { getAuthClient } from "@/lib/db";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
+import {
+  isEffectiveTrialAccount,
+  isProfilePaidForAppAccess,
+  syncTrialUiSessionFlag,
+} from "@/lib/trial-shop";
 
 const BANK_BIN = process.env.NEXT_PUBLIC_BANK_BIN || "970422";
 const BANK_ACCOUNT = process.env.NEXT_PUBLIC_BANK_ACCOUNT || "0000000000";
@@ -45,7 +48,7 @@ function PaymentRequiredContent() {
     } = {};
 
     try {
-      const u = auth.currentUser;
+      const u = getAuthClient().getCurrentUser();
       const token = u ? await u.getIdToken() : "";
       const res = await fetch("/api/auth/payment-status", {
         credentials: "include",
@@ -75,8 +78,14 @@ function PaymentRequiredContent() {
 
     if (!profile.paymentStatus && !profile.shopSlug) {
       try {
-        const snap = await get(ref(rtdb, `users/${uid}`));
-        profile = (snap.val() || {}) as typeof profile;
+        const p = await fetchUserProfileClient(uid);
+        profile = {
+          shopSlug: p.shopSlug,
+          paymentStatus: p.paymentStatus,
+          paymentRef: p.paymentRef,
+          registrationTrial: p.registrationTrial,
+          upgradeTargetSlug: p.upgradeTargetSlug,
+        };
       } catch {
         setMessage((m) => m || "Không đọc được trạng thái tài khoản. Thử đăng xuất và đăng nhập lại.");
         return false;
@@ -85,13 +94,13 @@ function PaymentRequiredContent() {
 
     const resolvedShop = String(profile.shopSlug || "");
     const upgradeTarget = String(profile.upgradeTargetSlug || "").trim();
-    const paid = profile.paymentStatus === "active";
+    const rt = profile.registrationTrial;
     const reg =
-      profile.registrationTrial === true || profile.registrationTrial === "true"
-        ? true
-        : profile.registrationTrial === false || profile.registrationTrial === "false"
-          ? false
-          : null;
+      rt === true || rt === "true" ? true : rt === false || rt === "false" ? false : null;
+    const paid = isProfilePaidForAppAccess({
+      paymentStatus: String(profile.paymentStatus || ""),
+      registrationTrial: reg,
+    });
     if (!hasValidShopSlug(resolvedShop)) {
       if (!forcingLogout) {
         setForcingLogout(true);
@@ -115,7 +124,7 @@ function PaymentRequiredContent() {
     if (paid) {
       const slug = String(resolvedShop || "").trim();
       if (!slug) return false;
-      const u = auth.currentUser;
+      const u = getAuthClient().getCurrentUser();
       if (u) {
         const token = await u.getIdToken();
         await postSessionCookieWithRetries(token, { shopSlug: slug });
@@ -131,11 +140,11 @@ function PaymentRequiredContent() {
 
   useEffect(() => {
     let disposed = false;
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    const unsub = getAuthClient().onAuthStateChanged(async (user) => {
       if (!user) {
         window.setTimeout(() => {
           if (disposed) return;
-          const restoredUser = auth.currentUser;
+          const restoredUser = getAuthClient().getCurrentUser();
           if (!restoredUser) {
             router.replace("/login");
             return;
@@ -158,7 +167,7 @@ function PaymentRequiredContent() {
   useEffect(() => {
     if (checking) return;
     const timer = window.setInterval(() => {
-      const user = auth.currentUser;
+      const user = getAuthClient().getCurrentUser();
       if (!user) return;
       void checkStatus(user.uid);
     }, 4000);
@@ -174,7 +183,7 @@ function PaymentRequiredContent() {
   }, [cooldownSeconds]);
 
   async function handleIHavePaid() {
-    const user = auth.currentUser;
+    const user = getAuthClient().getCurrentUser();
     if (!user) {
       router.replace("/login");
       return;
@@ -196,7 +205,7 @@ function PaymentRequiredContent() {
   }
 
   async function handleLogout() {
-    await signOut(auth);
+    await getAuthClient().signOut();
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
     router.replace("/login");
   }

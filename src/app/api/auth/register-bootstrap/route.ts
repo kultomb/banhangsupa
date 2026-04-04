@@ -1,4 +1,3 @@
-import { adminAuth, adminDb } from "@/lib/backend/server";
 import { emptyPosAppJsonPayload } from "@/lib/backend/pos-backup-normalize";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix, TRIAL_DURATION_MS } from "@/lib/trial-shop";
@@ -6,7 +5,11 @@ import { randomBytes } from "crypto";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+import { adminDb } from "@/lib/backend/server";
 import { adminFirestore } from "@/lib/firebase-admin";
+import { getAdminAuthService } from "@/lib/db/server";
+import { getDbProvider } from "@/lib/db/provider";
+import { registerBootstrapPostgres } from "@/lib/supabase/register-bootstrap-pg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "invalid_email" }, { status: 400 });
     }
 
-    const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
+    const decoded = await getAdminAuthService().verifyIdToken(idToken).catch(() => null);
     if (!decoded?.uid) {
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
@@ -66,16 +69,34 @@ export async function POST(request: Request) {
       }
     }
 
+    const paymentRef = createPaymentRef(isTrial ? "DEMO" : "PAY", slug);
+    const trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
+
+    if (getDbProvider() === "supabase") {
+      const r = await registerBootstrapPostgres({
+        uid,
+        emailTrimmed,
+        slug,
+        shopDisplayName,
+        isTrial,
+        paymentRef,
+        trialExpiresAt,
+      });
+      if ("error" in r) {
+        return Response.json(
+          { error: r.error, message: r.message },
+          { status: r.status },
+        );
+      }
+      return Response.json({ ok: true, shopSlug: r.shopSlug });
+    }
+
     const { shop: shopPath, backup: backupPath } = getShopPaths(slug, isTrial);
     const db = adminDb();
     const shopSnap = await db.ref(shopPath).get();
     if (shopSnap.exists()) {
       return Response.json({ error: "shop_exists" }, { status: 409 });
     }
-
-    const paymentRef = createPaymentRef(isTrial ? "DEMO" : "PAY", slug);
-
-    const trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
 
     const userPayload: Record<string, unknown> = {
       uid,
@@ -143,9 +164,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[register-bootstrap]", msg);
-    return Response.json(
-      { error: "server_error", message: process.env.NODE_ENV !== "production" ? msg : undefined },
-      { status: 500 },
-    );
+    return Response.json({ error: "server_error", message: msg }, { status: 500 });
   }
 }

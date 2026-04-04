@@ -1,6 +1,8 @@
 import { requireAdminFromRequest } from "@/lib/backend/admin-api-auth";
 import { adminDb } from "@/lib/backend/server";
+import { getDbProvider } from "@/lib/db/provider";
 import { PRESENCE_ONLINE_MS } from "@/lib/presence-config";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,8 +10,7 @@ export const dynamic = "force-dynamic";
 const MAX_UIDS = 500;
 
 /**
- * Chỉ đọc RTDB `users/{uid}/lastSeen` — để admin làm mới online/offline theo thời gian thực
- * mà không tải lại toàn bộ danh sách.
+ * Đọc lastSeen (RTDB hoặc user_profiles.last_seen) — refresh online/offline admin.
  */
 export async function GET(request: Request) {
   const gate = await requireAdminFromRequest(request);
@@ -30,21 +31,39 @@ export async function GET(request: Request) {
   }
 
   try {
-    const db = adminDb();
     const now = Date.now();
     const presence: Record<string, { lastSeen: number | null; online: boolean }> = {};
 
-    await Promise.all(
-      uids.map(async (uid) => {
-        const lastSnap = await db.ref(`users/${uid}/lastSeen`).get();
-        const v = lastSnap.val();
-        const lastSeen = typeof v === "number" && Number.isFinite(v) ? v : null;
+    if (getDbProvider() === "supabase") {
+      const admin = createSupabaseAdminClient();
+      const { data: rows } = await admin
+        .from("user_profiles")
+        .select("id, last_seen")
+        .in("id", uids);
+      const byId = new Map((rows || []).map((r) => [r.id, r.last_seen]));
+      for (const uid of uids) {
+        const iso = byId.get(uid) as string | null | undefined;
+        const n = iso ? Date.parse(iso) : NaN;
+        const lastSeen = Number.isFinite(n) ? n : null;
         presence[uid] = {
           lastSeen,
           online: lastSeen != null && now - lastSeen <= PRESENCE_ONLINE_MS,
         };
-      }),
-    );
+      }
+    } else {
+      const db = adminDb();
+      await Promise.all(
+        uids.map(async (uid) => {
+          const lastSnap = await db.ref(`users/${uid}/lastSeen`).get();
+          const v = lastSnap.val();
+          const lastSeen = typeof v === "number" && Number.isFinite(v) ? v : null;
+          presence[uid] = {
+            lastSeen,
+            online: lastSeen != null && now - lastSeen <= PRESENCE_ONLINE_MS,
+          };
+        }),
+      );
+    }
 
     return new Response(JSON.stringify({ presence }), {
       status: 200,

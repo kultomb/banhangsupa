@@ -1,4 +1,4 @@
-import type { ActionCodeSettings } from "firebase/auth";
+import type { PasswordResetActionSettings } from "@/lib/db/types";
 
 import { getPasswordResetContinueOrigin } from "@/lib/site-brand";
 
@@ -18,7 +18,7 @@ import { getPasswordResetContinueOrigin } from "@/lib/site-brand";
  * **Templates (bỏ "dangnnhap-…" trong mail):** xem file `firebase-password-reset-email-hangho.txt` ở gốc repo —
  * dán Subject + Body vào Firebase Console → Authentication → Templates → Password reset.
  */
-export function buildPasswordResetActionCodeSettings(): ActionCodeSettings | undefined {
+export function buildPasswordResetActionCodeSettings(): PasswordResetActionSettings | undefined {
   const origin = getPasswordResetContinueOrigin();
   if (!origin) return undefined;
   return {

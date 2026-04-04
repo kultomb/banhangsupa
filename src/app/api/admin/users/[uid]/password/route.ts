@@ -1,6 +1,6 @@
 import { requireAdminFromRequest } from "@/lib/backend/admin-api-auth";
-import { adminAuth } from "@/lib/backend/server";
 import { validateSignupPassword } from "@/lib/password-policy";
+import { getAdminAuthService } from "@/lib/db/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ uid: strin
   }
 
   const password = String(body?.password || "");
-  const userRecord = await adminAuth().getUser(uid).catch(() => null);
+  const auth = getAdminAuthService();
+  const userRecord = await auth.getUser(uid).catch(() => null);
   const email = userRecord?.email ?? undefined;
   const check = validateSignupPassword(password, email);
   if (!check.ok) {
@@ -40,7 +41,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ uid: strin
   }
 
   try {
-    await adminAuth().updateUser(uid, { password });
+    await auth.updateUserPassword(uid, password);
   } catch (e) {
     console.error("[admin/password]", e);
     return new Response(JSON.stringify({ error: "update_failed", message: "Không cập nhật được mật khẩu." }), {

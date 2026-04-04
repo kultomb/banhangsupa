@@ -1,5 +1,7 @@
 import admin from "firebase-admin";
 
+import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
+
 const databaseURL = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "").trim();
 
 function getServiceAccount() {
@@ -34,6 +36,11 @@ function getServiceAccount() {
 }
 
 function getAdminApp() {
+  if (isSupabaseDbProvider()) {
+    throw new Error(
+      "[firebase-admin] Không dùng khi NEXT_PUBLIC_DB_PROVIDER=supabase. Route này cần bản Postgres/Supabase.",
+    );
+  }
   if (admin.apps.length) return admin.app();
   const svc = getServiceAccount();
   if (!svc) {

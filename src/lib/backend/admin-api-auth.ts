@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import { adminAuth } from "@/lib/backend/server";
+import { getAdminAuthService } from "@/lib/db/server";
 
 const COOKIE_NAME = "ha_session_token";
 
@@ -36,7 +36,7 @@ export async function requireAdminFromRequest(request: Request): Promise<
       }),
     };
   }
-  const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
+  const decoded = await getAdminAuthService().verifyIdToken(token).catch(() => null);
   if (!decoded?.uid) {
     return {
       ok: false,

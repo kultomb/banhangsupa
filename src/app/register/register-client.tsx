@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  onAuthStateChanged,
-  signOut,
-} from "firebase/auth";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
 import { postSessionCookieWithRetries } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
@@ -97,8 +91,8 @@ export default function RegisterForm() {
 
     setLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, emailTrimmed, password);
-      const idToken = await cred.user.getIdToken();
+      const cred = await getAuthClient().createUserWithEmailAndPassword(emailTrimmed, password);
+      const idToken = await cred.getIdToken();
 
       await new Promise<void>((resolve) => {
         let done = false;
@@ -107,9 +101,9 @@ export default function RegisterForm() {
           done = true;
           resolve();
         }, 3000);
-        const unsub = onAuthStateChanged(auth, (u) => {
+        const unsub = getAuthClient().onAuthStateChanged((u) => {
           if (done) return;
-          if (!u || u.uid !== cred.user.uid) return;
+          if (!u || u.uid !== cred.uid) return;
           done = true;
           window.clearTimeout(timer);
           unsub();
@@ -129,16 +123,19 @@ export default function RegisterForm() {
       });
       const bootJson = (await bootRes.json().catch(() => ({}))) as {
         error?: string;
+        message?: string;
         shopSlug?: string;
       };
 
       if (!bootRes.ok) {
         try {
-          await deleteUser(cred.user);
+          await getAuthClient().deleteUser(cred);
         } catch {
-          await signOut(auth).catch(() => undefined);
+          await getAuthClient().signOut().catch(() => undefined);
         }
-        if (bootRes.status === 409 || bootJson.error === "shop_exists") {
+        if (bootJson.error === "profile_exists") {
+          setError("Tài khoản đã có hồ sơ. Hãy đăng nhập hoặc xóa user trong Supabase nếu đang test lại.");
+        } else if (bootRes.status === 409 || bootJson.error === "shop_exists") {
           setError("Tên shop đã tồn tại. Vui lòng chọn tên khác.");
         } else if (bootJson.error === "shop_name_short") {
           setError("Tên gian hàng thử quá ngắn. Vui lòng nhập ít nhất 2 ký tự (chữ thường hoặc số).");
@@ -146,6 +143,8 @@ export default function RegisterForm() {
           setError("Tên shop chỉ gồm a-z, số, dấu -, độ dài 3-30 ký tự.");
         } else if (bootRes.status === 401) {
           setError("Đăng nhập không hợp lệ. Vui lòng thử lại.");
+        } else if (bootJson.message) {
+          setError(`Không tạo được cửa hàng: ${bootJson.message}`);
         } else {
           setError("Không tạo được cửa hàng. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.");
         }

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { adminAuth } from "@/lib/backend/server";
 import { normalizeShopSlug, resolveUserShopContext } from "@/lib/backend/userShopSlug";
+import { getAdminAuthService } from "@/lib/db/server";
 import { isEffectiveTrialAccount } from "@/lib/trial-shop";
 
 const SESSION_COOKIE = "ha_session_token";
@@ -19,7 +19,7 @@ export async function redirectIfShopUrlMismatch(pathShopFromUrl: string): Promis
     const token = jar.get(SESSION_COOKIE)?.value?.trim();
     if (!token) return;
 
-    const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
+    const decoded = await getAdminAuthService().verifyIdToken(token).catch(() => null);
     if (!decoded?.uid) return;
 
     const ctx = await resolveUserShopContext(decoded.uid);

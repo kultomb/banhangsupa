@@ -3,15 +3,29 @@ import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth"
 import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
 
+import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
+
 function trimEnv(v: string | undefined) {
   return typeof v === "string" ? v.trim() : "";
 }
 
 /**
- * Bắt buộc dùng `process.env.NEXT_PUBLIC_*` trực tiếp (không `process.env[name]`).
- * Next/Webpack chỉ thay thế tĩnh các literal đó vào bundle trình duyệt; truy cập động → luôn rỗng → auth/invalid-api-key hoặc báo thiếu env.
+ * Khi `NEXT_PUBLIC_DB_PROVIDER=supabase`, không cần biến Firebase trong env — dùng cấu hình placeholder
+ * để SDK khởi tạo được (tránh throw lúc import). Luồng UI phải dùng `getAuthClient()` / Supabase, không gọi Firebase.
  */
 function readFirebaseWebConfig() {
+  if (isSupabaseDbProvider()) {
+    return {
+      apiKey: "supabase-db-placeholder",
+      authDomain: "supabase-db-placeholder.firebaseapp.com",
+      databaseURL: "https://supabase-db-placeholder.firebaseio.com",
+      projectId: "supabase-db-placeholder",
+      storageBucket: "supabase-db-placeholder.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:supabase-db-placeholder",
+    };
+  }
+
   const apiKey = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const authDomain = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
   const databaseURL = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL);
@@ -31,6 +45,7 @@ function readFirebaseWebConfig() {
     throw new Error(
       `[Hangho] Thiếu biến môi trường cho đăng nhập / đồng bộ: ${missing.join(", ")}. ` +
         "Tạo .env.local ở thư mục gốc, điền đủ NEXT_PUBLIC_FIREBASE_* (bảng điều khiển dự án → Project settings → Web app). " +
+        "Hoặc đặt NEXT_PUBLIC_DB_PROVIDER=supabase và chỉ cấu hình Supabase. " +
         "Sau đó dừng dev server, xóa thư mục .next nếu cần, rồi chạy lại npm run dev.",
     );
   }
@@ -51,8 +66,7 @@ function readFirebaseWebConfig() {
 
 const app = getApps().length ? getApp() : initializeApp(readFirebaseWebConfig());
 
-// Analytics is browser-only; keep login flow simple for now.
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && !isSupabaseDbProvider()) {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY;
   if (siteKey) {
     import("firebase/app-check")

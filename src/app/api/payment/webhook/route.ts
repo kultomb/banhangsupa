@@ -1,6 +1,8 @@
 import { migrateTrialShopToProduction } from "@/lib/backend/trialUpgrade";
 import { normalizeShopSlug } from "@/lib/backend/userShopSlug";
 import { adminDb } from "@/lib/backend/server";
+import { getDbProvider } from "@/lib/db/provider";
+import { handlePaymentWebhookPostgres } from "@/lib/supabase/payment-webhook-pg";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -150,6 +152,21 @@ export async function POST(request: Request) {
       return Response.json({ success: false, reason: "missing_fields" }, { status: 400 });
     }
 
+    const required = paymentAmountRequired();
+
+    if (getDbProvider() === "supabase") {
+      const body = await handlePaymentWebhookPostgres(
+        payload,
+        transferContent,
+        paymentCode,
+        paymentCodeCompact,
+        amount,
+        txnId,
+        required,
+      );
+      return Response.json(body);
+    }
+
     const db = adminDb();
     const ingestRef = db.ref(`paymentWebhookIngest/${txnId}`);
     const legacyEventRef = db.ref(`paymentEvents/${txnId}`);
@@ -163,8 +180,6 @@ export async function POST(request: Request) {
     if (priorIngest?.outcome === "matched") {
       return Response.json({ success: true, duplicated: true, reason: "already_matched_ingest" });
     }
-
-    const required = paymentAmountRequired();
 
     const pendingSnap = await db.ref("users").orderByChild("paymentStatus").equalTo("pending").get();
     const upgradeSnap = await db

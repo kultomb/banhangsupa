@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
 import { adminFirestore } from "@/lib/firebase-admin";
 
 const COLLECTION = "_security_login_rate";
@@ -26,6 +27,9 @@ function clientIpFromRequest(request: Request) {
  * Khi TURNSTILE_SECRET_KEY không cấu hình (dev), vẫn áp dụng rate limit.
  */
 export async function recordLoginPrecheckAttempt(request: Request, email: string) {
+  if (isSupabaseDbProvider()) {
+    return;
+  }
   const ip = clientIpFromRequest(request);
   const bucket = loginRateBucketId(ip, email);
   const fs = adminFirestore();
@@ -96,6 +100,9 @@ export class RateLimitBlockedError extends Error {
 }
 
 export async function resetLoginRateForEmail(request: Request, email: string) {
+  if (isSupabaseDbProvider()) {
+    return;
+  }
   const ip = clientIpFromRequest(request);
   const bucket = loginRateBucketId(ip, email);
   try {

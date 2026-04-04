@@ -54,6 +54,18 @@ export function isEffectiveTrialAccount(
   return slugLooksTrial;
 }
 
+/** Trial bootstrap Postgres: pending + registration_trial — vẫn vào được POS (không kẹt payment-required). */
+export function isProfilePaidForAppAccess(params: {
+  paymentStatus: string;
+  registrationTrial: boolean | null | undefined;
+}): boolean {
+  const ps = String(params.paymentStatus || "").trim();
+  if (ps === "active") return true;
+  if (ps === "pending_upgrade") return true;
+  if (ps === "pending" && params.registrationTrial === true) return true;
+  return false;
+}
+
 /**
  * Chuẩn hóa hạn dùng thử:
  * - Ưu tiên `trialExpiresAt` nếu có.

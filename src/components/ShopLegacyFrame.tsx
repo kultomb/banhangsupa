@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { auth } from "@/lib/backend/client";
+import { getAuthClient } from "@/lib/db";
 import AccountBar from "@/components/AccountBar";
 import { confirmDialog } from "@/components/confirm-dialog";
 import type { ConfirmDialogOptions } from "@/components/confirm-dialog";
@@ -19,7 +19,7 @@ const PM_CONFIRM = "HANGHO_CONFIRM";
 const PM_CONFIRM_RESULT = "HANGHO_CONFIRM_RESULT";
 
 async function readHanghoIdToken(): Promise<string | null> {
-  const u = auth.currentUser;
+  const u = getAuthClient().getCurrentUser();
   if (!u) return null;
   try {
     return await u.getIdToken();

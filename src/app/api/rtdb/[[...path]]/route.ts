@@ -20,7 +20,10 @@
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
  */
 import { cookies } from "next/headers";
-import { adminAuth, adminDb } from "@/lib/backend/server";
+import { adminDb } from "@/lib/backend/server";
+import { getDbProvider } from "@/lib/db/provider";
+import { getAdminAuthService } from "@/lib/db/server";
+import { proxyPosBackupPostgres } from "@/lib/supabase/pos-backup-pg";
 import { getBackupDbRoot } from "@/lib/backend/shop-paths";
 import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize";
 import { liftLegacyTrialBackupToTrialBackups } from "@/lib/backend/trialUpgrade";
@@ -160,7 +163,7 @@ async function proxy(
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const decoded = await adminAuth()
+  const decoded = await getAdminAuthService()
     .verifyIdToken(token)
     .catch(() => null);
   if (!decoded?.uid) {
@@ -220,6 +223,16 @@ async function proxy(
     path: targetPath,
     trial: trialUser,
   });
+  if (getDbProvider() === "supabase") {
+    return proxyPosBackupPostgres({
+      method,
+      segments,
+      allowedShopKey,
+      trialUser,
+      uid: decoded.uid,
+      request,
+    });
+  }
   const db = adminDb();
   if (trialUser) {
     await liftLegacyTrialBackupToTrialBackups(db, allowedShopKey);
