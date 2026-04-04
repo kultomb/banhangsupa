@@ -82,7 +82,8 @@ export class SupabaseAuthClient implements IAuthClient {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await this.sb.auth.signOut();
+    /** Mặc định Supabase là `scope: 'global'` — đăng xuất 1 trình duyệt sẽ hủy mọi phiên → tab khác kẹt cookie/RTDB. */
+    const { error } = await this.sb.auth.signOut({ scope: "local" });
     if (error) throw error;
     this.setSnapshot(null);
   }
