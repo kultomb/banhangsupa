@@ -27,6 +27,14 @@ function toPaymentRequiredPath(shopSlug?: string) {
   return shop ? `/payment-required?shop=${encodeURIComponent(shop)}` : "/payment-required";
 }
 
+/** Tránh open redirect: chỉ path nội bộ một segment `/…`. */
+function safeInternalNextPath(raw: string | null): string | null {
+  const s = String(raw || "").trim();
+  if (!s.startsWith("/") || s.startsWith("//")) return null;
+  if (/[\s@]/.test(s) || /\/\//.test(s)) return null;
+  return s;
+}
+
 function getAuthErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : "";
   const codeMatch = raw.match(/auth\/[a-z-]+/i);
@@ -81,6 +89,10 @@ function LoginContent() {
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
+  const nextParamRef = useRef<string | null>(null);
+  useEffect(() => {
+    nextParamRef.current = searchParams.get("next");
+  }, [searchParams]);
 
   useEffect(() => {
     const reason = String(searchParams.get("reason") || "");
@@ -135,6 +147,7 @@ function LoginContent() {
       const safetyId = window.setTimeout(() => setAuthBootstrapping(false), safetyMs);
       void (async () => {
         try {
+          const nextPath = safeInternalNextPath(nextParamRef.current);
           const profile = await resolveUserProfile(user.uid);
           if (!hasValidShopSlug(profile.shopSlug)) {
             if (forcingLogout) return;
@@ -149,8 +162,30 @@ function LoginContent() {
             shopSlug: profile.shopSlug,
             registrationTrial: profile.registrationTrial,
           });
+          let idToken: string;
+          try {
+            idToken = await user.getIdToken();
+          } catch {
+            setError("Không lấy được token phiên. Thử tải lại trang.");
+            return;
+          }
+          const sessionOk = await postSessionCookieWithRetries(idToken, {
+            shopSlug: profile.shopSlug,
+          });
+          if (!sessionOk) {
+            setError("Chưa đồng bộ cookie phiên. Kiểm tra mạng rồi tải lại trang.");
+            return;
+          }
+          if (nextPath?.startsWith("/admin")) {
+            router.replace(nextPath);
+            return;
+          }
           if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
             router.replace(toPaymentRequiredPath(profile.shopSlug));
+            return;
+          }
+          if (nextPath) {
+            router.replace(nextPath);
             return;
           }
           if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
@@ -251,8 +286,17 @@ function LoginContent() {
         shopSlug: profile.shopSlug,
         registrationTrial: profile.registrationTrial,
       });
+      const nextPath = safeInternalNextPath(searchParams.get("next"));
+      if (nextPath?.startsWith("/admin")) {
+        router.replace(nextPath);
+        return;
+      }
       if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
         router.replace(toPaymentRequiredPath(profile.shopSlug));
+        return;
+      }
+      if (nextPath) {
+        router.replace(nextPath);
         return;
       }
       if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
