@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/database"],
   },
+  async redirects() {
+    return [
+      /** Lỗi đánh máy phổ biến — tránh [shop] coi "upgarde" là slug cửa hàng → 404. */
+      { source: "/upgarde", destination: "/upgrade", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

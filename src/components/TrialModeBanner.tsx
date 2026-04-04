@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getAuthClient } from "@/lib/db";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
@@ -77,6 +78,8 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
         borderBottom: "1px solid #34d399",
       };
 
+  const linkColor = expired ? "#991b1b" : "#047857";
+
   return (
     <div
       role="status"
@@ -89,11 +92,35 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
         lineHeight: 1.45,
       }}
     >
-      {expired
-        ? "Gói dùng thử đã hết hạn. Nâng cấp để tiếp tục dùng đầy đủ."
-        : daysLeft != null
-          ? `Bạn đang dùng thử — còn khoảng ${daysLeft} ngày.`
-          : "Bạn đang dùng thử — hãy nâng cấp khi sẵn sàng."}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "6px 10px",
+        }}
+      >
+        <span>
+          {expired
+            ? "Gói dùng thử đã hết hạn. Nâng cấp để tiếp tục dùng đầy đủ."
+            : daysLeft != null
+              ? `Bạn đang dùng thử — còn khoảng ${daysLeft} ngày.`
+              : "Bạn đang dùng thử — hãy nâng cấp khi sẵn sàng."}
+        </span>
+        <Link
+          href="/upgrade"
+          style={{
+            color: linkColor,
+            fontWeight: 800,
+            textDecoration: "underline",
+            textUnderlineOffset: "3px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Nâng cấp ngay
+        </Link>
+      </div>
     </div>
   );
 }
