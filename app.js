@@ -421,7 +421,10 @@ window.FirebaseStorage = {
             if (res.status === 409 && !_retried) {
                 let parsedErr = null;
                 try { parsedErr = resText ? JSON.parse(resText) : null; } catch (_) {}
-                if (parsedErr && parsedErr.error === 'stale_data') {
+                if (
+                    parsedErr &&
+                    (parsedErr.error === 'stale_data' || parsedErr.error === 'transaction_aborted')
+                ) {
                     const latest = await this.load().catch(() => null);
                     const latestMeta = latest && latest.meta && typeof latest.meta === 'object' ? latest.meta : (this._cache.meta || {});
                     const retryMeta = Object.assign({}, payload.meta || {}, {

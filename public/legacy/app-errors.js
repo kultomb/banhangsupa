@@ -278,6 +278,7 @@
             else code = 'unknown_error';
         } else if (status === 409) {
             if (serverError === 'stale_data') code = 'stale_data';
+            else if (serverError === 'transaction_aborted') code = 'stale_data';
             else if (serverError === 'demo_seed_forbidden') code = 'demo_seed_forbidden';
             else code = 'unknown_error';
         } else if (status >= 500 || status === 0) code = 'network_error';
