@@ -1,14 +1,7 @@
-import { emptyPosAppJsonPayload } from "@/lib/backend/pos-backup-normalize";
-import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix, TRIAL_DURATION_MS } from "@/lib/trial-shop";
 import { randomBytes } from "crypto";
-import admin from "firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
 
-import { adminDb } from "@/lib/backend/server";
-import { adminFirestore } from "@/lib/firebase-admin";
 import { getAdminAuthService } from "@/lib/db/server";
-import { getDbProvider } from "@/lib/db/provider";
 import { registerBootstrapPostgres } from "@/lib/supabase/register-bootstrap-pg";
 
 export const runtime = "nodejs";
@@ -72,95 +65,22 @@ export async function POST(request: Request) {
     const paymentRef = createPaymentRef(isTrial ? "DEMO" : "PAY", slug);
     const trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
 
-    if (getDbProvider() === "supabase") {
-      const r = await registerBootstrapPostgres({
-        uid,
-        emailTrimmed,
-        slug,
-        shopDisplayName,
-        isTrial,
-        paymentRef,
-        trialExpiresAt,
-      });
-      if ("error" in r) {
-        return Response.json(
-          { error: r.error, message: r.message },
-          { status: r.status },
-        );
-      }
-      return Response.json({ ok: true, shopSlug: r.shopSlug });
-    }
-
-    const { shop: shopPath, backup: backupPath } = getShopPaths(slug, isTrial);
-    const db = adminDb();
-    const shopSnap = await db.ref(shopPath).get();
-    if (shopSnap.exists()) {
-      return Response.json({ error: "shop_exists" }, { status: 409 });
-    }
-
-    const userPayload: Record<string, unknown> = {
+    const r = await registerBootstrapPostgres({
       uid,
-      email: emailTrimmed,
-      shopSlug: slug,
-      ...(shopDisplayName ? { shopDisplayName } : {}),
-      paymentStatus: isTrial ? "active" : "pending",
-      paymentRef,
-      createdAt: admin.database.ServerValue.TIMESTAMP,
-    };
-    if (isTrial) {
-      userPayload.registrationTrial = true;
-      userPayload.trialExpiresAt = trialExpiresAt;
-    }
-
-    const shopPayload: Record<string, unknown> = {
+      emailTrimmed,
       slug,
-      ...(shopDisplayName ? { displayName: shopDisplayName } : {}),
-      ownerUid: uid,
-      ownerEmail: emailTrimmed,
-      createdAt: admin.database.ServerValue.TIMESTAMP,
-    };
-    if (isTrial) {
-      const createdMs = Date.now();
-      shopPayload.trial = true;
-      shopPayload.trialShop = true;
-      shopPayload.createdAt = createdMs;
-      shopPayload.expiresAt = trialExpiresAt;
-    }
-
-    await db.ref(`users/${uid}`).set(userPayload);
-    await db.ref(shopPath).set(shopPayload);
-    await db.ref(`${backupPath}/app`).set(emptyPosAppJsonPayload());
-
-    try {
-      const fs = adminFirestore();
-      const shopRef = fs.collection("shops").doc();
-      const shopId = shopRef.id;
-      const batch = fs.batch();
-      batch.set(shopRef, {
-        ownerId: uid,
-        slug,
-        ownerEmail: emailTrimmed,
-        trial: isTrial ? true : false,
-        ...(isTrial ? { trialExpiresAt, trialShop: true } : {}),
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      batch.set(
-        fs.collection("users").doc(uid),
-        {
-          shopId,
-          shopSlug: slug,
-          ...(shopDisplayName ? { shopDisplayName } : {}),
-          ownerId: uid,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
+      shopDisplayName,
+      isTrial,
+      paymentRef,
+      trialExpiresAt,
+    });
+    if ("error" in r) {
+      return Response.json(
+        { error: r.error, message: r.message },
+        { status: r.status },
       );
-      await batch.commit();
-    } catch (fe) {
-      console.error("[register-bootstrap] firestore", fe);
     }
-
-    return Response.json({ ok: true, shopSlug: slug });
+    return Response.json({ ok: true, shopSlug: r.shopSlug });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[register-bootstrap]", msg);

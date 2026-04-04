@@ -75,9 +75,6 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     const redirectToLogin = () => {
       if (redirecting) return;
       redirecting = true;
-      if (process.env.NODE_ENV !== "production") {
-        console.info("[RequireAuth] redirect -> /login");
-      }
       try {
         if (window.top && window.top !== window) {
           window.top.location.href = "/login";

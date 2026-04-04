@@ -36,18 +36,25 @@ export class SupabaseUserShopServer implements IUserShopServerService {
     const createdAt = toMillis(profile?.created_at ?? null);
 
     async function slugFromShopsTable(): Promise<string> {
-      const { data } = await admin.from("shops").select("slug").eq("owner_id", uid).limit(1).maybeSingle();
+      const { data, error } = await admin
+        .from("shops")
+        .select("slug")
+        .eq("owner_id", uid)
+        .limit(1)
+        .maybeSingle();
+      if (error) console.warn("[SupabaseUserShopServer] shops", error.message);
       return normalizeShopSlug(String(data?.slug || ""));
     }
 
     async function slugFromTrialShopsTable(): Promise<string> {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("trial_shops")
         .select("slug, expires_at")
         .eq("owner_id", uid)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) console.warn("[SupabaseUserShopServer] trial_shops", error.message);
       if (data?.expires_at && !trialExpiresAt) {
         trialExpiresAt = toMillis(data.expires_at);
       }
@@ -62,11 +69,11 @@ export class SupabaseUserShopServer implements IUserShopServerService {
     }
 
     if (shopSlug && profile && !normalizeShopSlug(String(profile.shop_slug || ""))) {
-      try {
-        await admin.from("user_profiles").update({ shop_slug: shopSlug }).eq("id", uid);
-      } catch {
-        // Bỏ qua — heal không bắt buộc cho response.
-      }
+      const { error: healErr } = await admin
+        .from("user_profiles")
+        .update({ shop_slug: shopSlug })
+        .eq("id", uid);
+      if (healErr) console.warn("[SupabaseUserShopServer] heal shop_slug", healErr.message);
     }
 
     return {

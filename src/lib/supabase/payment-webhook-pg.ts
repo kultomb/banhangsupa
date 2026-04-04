@@ -89,11 +89,15 @@ export async function handlePaymentWebhookPostgres(
 ): Promise<Record<string, unknown>> {
   const admin = createSupabaseAdminClient();
 
-  const { data: legacyRow } = await admin
+  const { data: legacyRow, error: ingestReadErr } = await admin
     .from("payment_webhook_ingest")
     .select("outcome")
     .eq("txn_id", txnId)
     .maybeSingle();
+  if (ingestReadErr) {
+    console.error("[payment-webhook-pg] payment_webhook_ingest read", ingestReadErr.message);
+    throw new Error("payment_webhook_ingest_read_failed");
+  }
 
   if (legacyRow?.outcome === "matched" || legacyRow?.outcome === "matched_upgrade") {
     return { success: true, duplicated: true, reason: "already_credited" };
@@ -102,16 +106,24 @@ export async function handlePaymentWebhookPostgres(
     return { success: true, duplicated: true, reason: "already_matched_ingest" };
   }
 
-  const { data: pendingRows } = await admin
+  const { data: pendingRows, error: pendingErr } = await admin
     .from("user_profiles")
     .select("id, payment_ref, shop_slug, registration_trial")
     .eq("payment_status", "pending")
     .or("registration_trial.is.null,registration_trial.eq.false");
+  if (pendingErr) {
+    console.error("[payment-webhook-pg] user_profiles pending", pendingErr.message);
+    throw new Error("payment_webhook_pending_query_failed");
+  }
 
-  const { data: upgradeRows } = await admin
+  const { data: upgradeRows, error: upgradeErr } = await admin
     .from("user_profiles")
     .select("id, payment_ref, shop_slug, upgrade_target_slug, payment_status")
     .eq("payment_status", "pending_upgrade");
+  if (upgradeErr) {
+    console.error("[payment-webhook-pg] user_profiles pending_upgrade", upgradeErr.message);
+    throw new Error("payment_webhook_upgrade_query_failed");
+  }
 
   let match = findPaymentMatch(
     (pendingRows || []) as UserPayRow[],
@@ -160,11 +172,15 @@ export async function handlePaymentWebhookPostgres(
   const { uid: matchedUid, matchedRef } = match;
 
   if (isUpgrade) {
-    const { data: profile } = await admin
+    const { data: profile, error: profErr } = await admin
       .from("user_profiles")
       .select("shop_slug, upgrade_target_slug, email, payment_status")
       .eq("id", matchedUid)
       .maybeSingle();
+    if (profErr) {
+      console.error("[payment-webhook-pg] user_profiles profile", profErr.message);
+      throw new Error("payment_webhook_profile_read_failed");
+    }
 
     const upgradeTo = normalizeShopSlug(String(profile?.upgrade_target_slug || ""));
     const fromSlug = normalizeShopSlug(String(profile?.shop_slug || ""));

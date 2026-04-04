@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
-import { getAuthClient, getDbProvider } from "@/lib/db";
+import { getAuthClient } from "@/lib/db";
 import LoginTurnstile, { type LoginTurnstileHandle } from "@/components/LoginTurnstile";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -295,9 +295,7 @@ function LoginContent() {
         lower.includes("redirect_uri")
       ) {
         setResetError(
-          getDbProvider() === "supabase"
-            ? "Không gửi được email: thêm URL trang /reset-password vào Redirect URLs trong Supabase Auth, hoặc liên hệ kỹ thuật."
-            : "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
+          "Không gửi được email: thêm URL trang /reset-password vào Redirect URLs trong Supabase Auth, hoặc liên hệ kỹ thuật.",
         );
       } else {
         setResetError("Không gửi được email đặt lại mật khẩu. Thử lại sau giây lát.");

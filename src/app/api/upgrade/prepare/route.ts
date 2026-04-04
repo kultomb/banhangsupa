@@ -1,4 +1,3 @@
-import { getShopPaths } from "@/lib/backend/shop-paths";
 import { normalizeShopSlug, resolveUserShopContext } from "@/lib/backend/userShopSlug";
 import { randomBytes } from "crypto";
 import {
@@ -7,8 +6,6 @@ import {
   productionSlugFromTrialSlug,
 } from "@/lib/trial-shop";
 
-import { adminDb } from "@/lib/backend/server";
-import { getDbProvider } from "@/lib/db/provider";
 import { upgradePreparePostgres } from "@/lib/supabase/upgrade-prepare-pg";
 import { getAdminAuthService } from "@/lib/db/server";
 
@@ -58,46 +55,16 @@ export async function POST(request: Request) {
       return Response.json({ error: "same_slug" }, { status: 400 });
     }
 
-    if (getDbProvider() === "supabase") {
-      const r = await upgradePreparePostgres({ uid, ctx, createPaymentRef: createUpgradePaymentRef });
-      if ("error" in r) {
-        return Response.json({ error: r.error }, { status: r.status });
-      }
-      return Response.json({
-        ok: true,
-        fromSlug: r.fromSlug,
-        targetSlug: r.targetSlug,
-        paymentRef: r.paymentRef,
-        email: r.email,
-      });
+    const r = await upgradePreparePostgres({ uid, ctx, createPaymentRef: createUpgradePaymentRef });
+    if ("error" in r) {
+      return Response.json({ error: r.error }, { status: r.status });
     }
-
-    const db = adminDb();
-    const [shopSnap, trialSnap] = await Promise.all([
-      db.ref(getShopPaths(targetSlug, false).shop).get(),
-      db.ref(getShopPaths(targetSlug, true).shop).get(),
-    ]);
-    if (shopSnap.exists() || trialSnap.exists()) {
-      return Response.json({ error: "slug_taken" }, { status: 409 });
-    }
-
-    const userSnap = await db.ref(`users/${uid}`).get();
-    const u = (userSnap.val() || {}) as { email?: string };
-    const paymentRef = createUpgradePaymentRef(targetSlug);
-
-    await db.ref(`users/${uid}`).update({
-      paymentStatus: "pending_upgrade",
-      paymentRef,
-      upgradeTargetSlug: targetSlug,
-      upgradeFromSlug: fromSlug,
-    });
-
     return Response.json({
       ok: true,
-      fromSlug,
-      targetSlug,
-      paymentRef,
-      email: String(u.email || "").trim(),
+      fromSlug: r.fromSlug,
+      targetSlug: r.targetSlug,
+      paymentRef: r.paymentRef,
+      email: r.email,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -3,21 +3,17 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import { getAuthClient, getDbProvider } from "@/lib/db";
+import { getAuthClient } from "@/lib/db";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
-import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { revokeAllSessionsThenSignOut } from "@/lib/client-auth";
 
 export default function ResetPasswordClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const mode = searchParams.get("mode");
   const oobCode = searchParams.get("oobCode");
   const recoveryCode = searchParams.get("code") || oobCode;
   const recoveryType = searchParams.get("type");
-  const isValidLink =
-    getDbProvider() === "supabase"
-      ? Boolean(recoveryCode && recoveryType === "recovery")
-      : mode === "resetPassword" && Boolean(oobCode);
+  const isValidLink = Boolean(recoveryCode && recoveryType === "recovery");
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,7 +30,7 @@ export default function ResetPasswordClient() {
     e.preventDefault();
     setError("");
     setMessage("");
-    const code = getDbProvider() === "supabase" ? recoveryCode : oobCode;
+    const code = recoveryCode;
     if (!code) {
       setError("Thiếu mã xác thực đặt lại mật khẩu.");
       return;
@@ -52,17 +48,12 @@ export default function ResetPasswordClient() {
     setLoading(true);
     try {
       const authClient = getAuthClient();
-      if (getDbProvider() === "supabase") {
-        await authClient.confirmPasswordReset(code, password);
-      } else {
-        await authClient.verifyPasswordResetCode(code);
-        await authClient.confirmPasswordReset(code, password);
-      }
+      await authClient.confirmPasswordReset(code, password);
       setPassword("");
       setConfirmPassword("");
       setMessage("Đổi mật khẩu thành công.");
       await new Promise((r) => window.setTimeout(r, 2000));
-      await revokeAllFirebaseSessionsThenSignOut();
+      await revokeAllSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
       setError("Link đổi mật khẩu không hợp lệ hoặc đã hết hạn.");

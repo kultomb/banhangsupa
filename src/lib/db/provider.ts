@@ -1,9 +1,6 @@
-export type DbProvider = "firebase" | "supabase";
+export type DbProvider = "supabase";
 
-/**
- * Chọn backend qua env. Mặc định `firebase` để triển khai Supabase dần mà không gãy production.
- */
+/** App chỉ còn backend Supabase/Postgres. */
 export function getDbProvider(): DbProvider {
-  const v = (process.env.NEXT_PUBLIC_DB_PROVIDER || "firebase").trim().toLowerCase();
-  return v === "supabase" ? "supabase" : "firebase";
+  return "supabase";
 }

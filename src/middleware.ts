@@ -1,8 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
-import { verifyFirebaseIdToken } from "@/lib/edge-firebase-jwt";
 import { verifySupabaseJwt } from "@/lib/edge-supabase-jwt";
 
 function adminUidSet(): Set<string> {
@@ -19,37 +17,19 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("ha_session_token")?.value?.trim() ?? "";
 
   const verifySession = async (): Promise<{ sub: string; admin?: boolean } | null> => {
-    if (isSupabaseDbProvider()) {
-      const secret = (process.env.SUPABASE_JWT_SECRET || "").trim();
-      if (!secret) return null;
-      return verifySupabaseJwt(token, secret);
-    }
-    const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
-    if (!projectId) return null;
-    return verifyFirebaseIdToken(token, projectId);
+    const secret = (process.env.SUPABASE_JWT_SECRET || "").trim();
+    if (!secret) return null;
+    return verifySupabaseJwt(token, secret);
   };
 
-  if (isSupabaseDbProvider()) {
-    if (!(process.env.SUPABASE_JWT_SECRET || "").trim()) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[middleware] missing SUPABASE_JWT_SECRET", { path });
-      }
-      if (path.startsWith("/api/admin")) {
-        return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
-      }
-      return new NextResponse(null, { status: 503 });
+  if (!(process.env.SUPABASE_JWT_SECRET || "").trim()) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[middleware] missing SUPABASE_JWT_SECRET", { path });
     }
-  } else {
-    const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
-    if (!projectId) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[middleware] missing NEXT_PUBLIC_FIREBASE_PROJECT_ID", { path });
-      }
-      if (path.startsWith("/api/admin")) {
-        return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
-      }
-      return new NextResponse(null, { status: 503 });
+    if (path.startsWith("/api/admin")) {
+      return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
     }
+    return new NextResponse(null, { status: 503 });
   }
 
   if (!token) {

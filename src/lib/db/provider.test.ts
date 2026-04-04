@@ -7,17 +7,17 @@ describe("getDbProvider", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults to firebase", () => {
+  it("returns supabase", () => {
     vi.stubEnv("NEXT_PUBLIC_DB_PROVIDER", "");
-    expect(getDbProvider()).toBe("firebase");
+    expect(getDbProvider()).toBe("supabase");
   });
 
-  it("returns supabase when set", () => {
+  it("returns supabase when env says supabase", () => {
     vi.stubEnv("NEXT_PUBLIC_DB_PROVIDER", "supabase");
     expect(getDbProvider()).toBe("supabase");
   });
 
-  it("is case-insensitive", () => {
+  it("returns supabase for mixed case env", () => {
     vi.stubEnv("NEXT_PUBLIC_DB_PROVIDER", "SupaBase");
     expect(getDbProvider()).toBe("supabase");
   });

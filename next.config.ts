@@ -22,9 +22,6 @@ const nextConfig: NextConfig = {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
   ],
-  experimental: {
-    optimizePackageImports: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/database"],
-  },
   async redirects() {
     return [
       /** Lỗi đánh máy phổ biến — tránh [shop] coi "upgarde" là slug cửa hàng → 404. */

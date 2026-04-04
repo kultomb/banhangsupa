@@ -120,10 +120,10 @@ export async function postSessionCookieWithRetries(
 }
 
 /**
- * Thu hồi mọi refresh token Firebase (mọi thiết bị), rồi đăng xuất client + xóa cookie phiên app.
- * Gọi ngay sau `updatePassword` / `confirmPasswordReset` khi `auth.currentUser` còn hợp lệ.
+ * Thu hồi mọi phiên Supabase (global signOut), rồi đăng xuất client + xóa cookie phiên app.
+ * Gọi sau `confirmPasswordReset` khi user còn JWT hợp lệ.
  */
-export async function revokeAllFirebaseSessionsThenSignOut(): Promise<{ revokeServerOk: boolean }> {
+export async function revokeAllSessionsThenSignOut(): Promise<{ revokeServerOk: boolean }> {
   let revokeServerOk = false;
   const user = getAuthClient().getCurrentUser();
   if (user) {
@@ -151,7 +151,7 @@ export async function forceLogoutMissingShop(redirectUrl = LOGIN_REDIRECT) {
   try {
     await getAuthClient().signOut();
   } catch {
-    // Continue cleanup even when Firebase sign-out fails.
+    // Continue cleanup even when sign-out fails.
   }
 
   await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);

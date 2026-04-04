@@ -1,4 +1,3 @@
-import { getDbProvider } from "@/lib/db/provider";
 import { getAdminAuthService } from "@/lib/db/server";
 import { deleteSupabaseAccountWithRelatedRows } from "@/lib/supabase/delete-account-pg";
 
@@ -20,11 +19,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
 
-    if (getDbProvider() === "supabase") {
-      await deleteSupabaseAccountWithRelatedRows(decoded.uid);
-    } else {
-      await getAdminAuthService().deleteUser(decoded.uid);
-    }
+    await deleteSupabaseAccountWithRelatedRows(decoded.uid);
 
     return Response.json({ ok: true });
   } catch (e) {

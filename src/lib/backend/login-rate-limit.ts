@@ -2,10 +2,8 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { isSupabaseDbProvider } from "@/lib/db/is-supabase-db";
-import { adminFirestore } from "@/lib/firebase-admin";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
-const COLLECTION = "_security_login_rate";
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const BLOCK_MS = 60 * 1000;
@@ -24,69 +22,67 @@ function clientIpFromRequest(request: Request) {
 
 /**
  * Gọi trước mỗi lần submit đăng nhập. Vượt quá MAX_ATTEMPTS trong WINDOW_MS → chặn BLOCK_MS.
- * Khi TURNSTILE_SECRET_KEY không cấu hình (dev), vẫn áp dụng rate limit.
  */
 export async function recordLoginPrecheckAttempt(request: Request, email: string) {
-  if (isSupabaseDbProvider()) {
-    return;
-  }
+  const admin = createSupabaseAdminClient();
   const ip = clientIpFromRequest(request);
   const bucket = loginRateBucketId(ip, email);
-  const fs = adminFirestore();
-  const ref = fs.collection(COLLECTION).doc(bucket);
   const now = Date.now();
 
-  const blockedUntilAfter = await fs.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const data = (snap.data() || {}) as {
-      count?: number;
-      windowStart?: number;
-      blockedUntil?: number;
-    };
-    const blockedUntil = typeof data.blockedUntil === "number" ? data.blockedUntil : 0;
-    if (blockedUntil > now) {
-      return blockedUntil;
-    }
+  const { data: row, error: readErr } = await admin
+    .from("login_rate_buckets")
+    .select("count, window_start, blocked_until")
+    .eq("id", bucket)
+    .maybeSingle();
 
-    let windowStart = typeof data.windowStart === "number" ? data.windowStart : now;
-    let count = typeof data.count === "number" ? data.count : 0;
+  if (readErr) {
+    console.warn("[login-rate-limit] read", readErr.message);
+    return;
+  }
 
-    if (now - windowStart > WINDOW_MS) {
-      windowStart = now;
-      count = 0;
-    }
+  const data = row as { count?: number; window_start?: number; blocked_until?: number } | null;
+  let blockedUntil = typeof data?.blocked_until === "number" ? data.blocked_until : 0;
+  if (blockedUntil > now) {
+    throw new RateLimitBlockedError(blockedUntil);
+  }
 
-    count += 1;
-    if (count > MAX_ATTEMPTS) {
-      const until = now + BLOCK_MS;
-      tx.set(
-        ref,
-        {
-          count: 0,
-          windowStart: now,
-          blockedUntil: until,
-          updatedAt: now,
-        },
-        { merge: true },
-      );
-      return until;
-    }
+  let windowStart = typeof data?.window_start === "number" ? data.window_start : now;
+  let count = typeof data?.count === "number" ? data.count : 0;
 
-    tx.set(
-      ref,
-      {
-        count,
-        windowStart,
-        blockedUntil: 0,
-        updatedAt: now,
-      },
-      { merge: true },
-    );
-    return 0;
-  });
+  if (now - windowStart > WINDOW_MS) {
+    windowStart = now;
+    count = 0;
+  }
 
-  if (blockedUntilAfter > now) {
-    throw new RateLimitBlockedError(blockedUntilAfter);
+  count += 1;
+  let newBlockedUntil = 0;
+  let nextCount = count;
+  let nextWindowStart = windowStart;
+
+  if (count > MAX_ATTEMPTS) {
+    newBlockedUntil = now + BLOCK_MS;
+    nextCount = 0;
+    nextWindowStart = now;
+  }
+
+  const { error: upsertErr } = await admin.from("login_rate_buckets").upsert(
+    {
+      id: bucket,
+      count: nextCount,
+      window_start: nextWindowStart,
+      blocked_until: newBlockedUntil,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  if (upsertErr) {
+    console.warn("[login-rate-limit] upsert", upsertErr.message);
+    return;
+  }
+
+  if (newBlockedUntil > now) {
+    throw new RateLimitBlockedError(newBlockedUntil);
   }
 }
 
@@ -100,13 +96,12 @@ export class RateLimitBlockedError extends Error {
 }
 
 export async function resetLoginRateForEmail(request: Request, email: string) {
-  if (isSupabaseDbProvider()) {
-    return;
-  }
+  const admin = createSupabaseAdminClient();
   const ip = clientIpFromRequest(request);
   const bucket = loginRateBucketId(ip, email);
   try {
-    await adminFirestore().collection(COLLECTION).doc(bucket).delete();
+    const { error } = await admin.from("login_rate_buckets").delete().eq("id", bucket);
+    if (error) console.warn("[login-rate-limit] delete", error.message);
   } catch {
     // Ignore.
   }

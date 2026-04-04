@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { getAuthClient } from "@/lib/db";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
-import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { revokeAllSessionsThenSignOut } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
 export default function AccountClient() {
@@ -71,7 +71,7 @@ export default function AccountClient() {
       setConfirmPassword("");
       setMessage("Đổi mật khẩu thành công.");
       await new Promise((r) => window.setTimeout(r, 2000));
-      await revokeAllFirebaseSessionsThenSignOut();
+      await revokeAllSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
       setError("Mật khẩu cũ không đúng hoặc không thể đổi mật khẩu.");

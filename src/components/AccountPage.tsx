@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { getAuthClient } from "@/lib/db";
-import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { revokeAllSessionsThenSignOut } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 
@@ -76,7 +76,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
       setMessageType("success");
       setMessage("Đổi mật khẩu thành công.");
       await new Promise((r) => window.setTimeout(r, 2000));
-      await revokeAllFirebaseSessionsThenSignOut();
+      await revokeAllSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
       setMessageType("error");
