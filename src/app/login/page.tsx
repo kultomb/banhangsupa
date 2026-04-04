@@ -128,7 +128,7 @@ function LoginContent() {
       }, 25000);
       try {
         const nextPath = safeInternalNextPath(nextParamRef.current);
-        let profileTimeoutId: ReturnType<typeof setTimeout> | undefined;
+        let profileTimeoutId: number | undefined;
         const profile = await (async () => {
           try {
             return await Promise.race([
@@ -153,7 +153,7 @@ function LoginContent() {
           registrationTrial: profile.registrationTrial,
         });
         let idToken: string;
-        let tokenTimeoutId: ReturnType<typeof setTimeout> | undefined;
+        let tokenTimeoutId: number | undefined;
         try {
           idToken = await (async () => {
             try {
