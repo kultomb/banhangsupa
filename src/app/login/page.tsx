@@ -4,8 +4,9 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { getAuthClient } from "@/lib/db";
+import type { AuthSessionUser } from "@/lib/db/types";
 import LoginTurnstile, { type LoginTurnstileHandle } from "@/components/LoginTurnstile";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -113,6 +114,84 @@ function LoginContent() {
     return fetchUserProfileClient(uid);
   }
 
+  const sessionRestoreLockRef = useRef(false);
+  const restoreLoggedInSession = useCallback(
+    async (user: AuthSessionUser) => {
+      if (submittingRef.current) return;
+      if (sessionRestoreLockRef.current) return;
+      sessionRestoreLockRef.current = true;
+      setAuthBootstrapping(true);
+      const safetyId = window.setTimeout(() => {
+        sessionRestoreLockRef.current = false;
+        setAuthBootstrapping(false);
+      }, 20000);
+      try {
+        const nextPath = safeInternalNextPath(nextParamRef.current);
+        let profileTimeoutId: ReturnType<typeof setTimeout> | undefined;
+        const profile = await (async () => {
+          try {
+            return await Promise.race([
+              resolveUserProfile(user.uid),
+              new Promise<never>((_, rej) => {
+                profileTimeoutId = window.setTimeout(() => rej(new Error("profile-timeout")), 12000);
+              }),
+            ]);
+          } finally {
+            if (profileTimeoutId !== undefined) window.clearTimeout(profileTimeoutId);
+          }
+        })();
+        if (!hasValidShopSlug(profile.shopSlug)) {
+          await Promise.race([
+            forceLogoutMissingShop(),
+            new Promise<void>((r) => setTimeout(r, 12000)),
+          ]);
+          return;
+        }
+        syncTrialUiSessionFlag({
+          shopSlug: profile.shopSlug,
+          registrationTrial: profile.registrationTrial,
+        });
+        let idToken: string;
+        try {
+          idToken = await user.getIdToken();
+        } catch {
+          setError("Không lấy được token phiên. Thử tải lại trang.");
+          return;
+        }
+        const sessionOk = await postSessionCookieWithRetries(idToken, {
+          shopSlug: profile.shopSlug,
+        });
+        if (!sessionOk) {
+          setError("Chưa đồng bộ cookie phiên. Kiểm tra mạng rồi tải lại trang.");
+          return;
+        }
+        if (nextPath?.startsWith("/admin")) {
+          window.location.assign(nextPath);
+          return;
+        }
+        if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
+          router.replace(toPaymentRequiredPath(profile.shopSlug));
+          return;
+        }
+        if (nextPath) {
+          router.replace(nextPath);
+          return;
+        }
+        if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
+        else router.replace("/account");
+      } catch (e) {
+        if (e instanceof Error && e.message === "profile-timeout") {
+          setError("Hết thời gian tải hồ sơ. Kiểm tra NEXT_PUBLIC_SUPABASE_URL / mạng rồi tải lại trang.");
+        }
+      } finally {
+        window.clearTimeout(safetyId);
+        sessionRestoreLockRef.current = false;
+        window.setTimeout(() => setAuthBootstrapping(false), 250);
+      }
+    },
+    [router],
+  );
+
   useEffect(() => {
     let active = true;
     /** Tunnel (ngrok) / mạng chặn có thể làm authStateReady() không bao giờ resolve — không kẹt spinner vô hạn. */
@@ -125,81 +204,28 @@ function LoginContent() {
         ]);
       } finally {
         if (!active) return;
-        if (!getAuthClient().getCurrentUser()) setAuthBootstrapping(false);
+        const u = getAuthClient().getCurrentUser();
+        if (!u) setAuthBootstrapping(false);
+        else void restoreLoggedInSession(u);
       }
     })();
     return () => {
       active = false;
     };
-  }, []);
+  }, [restoreLoggedInSession]);
 
   useEffect(() => {
-    let forcingLogout = false;
     const unsub = getAuthClient().onAuthStateChanged((user) => {
       if (submittingRef.current) return;
       if (!user) {
+        sessionRestoreLockRef.current = false;
         setAuthBootstrapping(false);
         return;
       }
-      setAuthBootstrapping(true);
-      /** signOut / redirect có thể treo qua ngrok — luôn tắt spinner sau tối đa ~20s. */
-      const safetyMs = 20000;
-      const safetyId = window.setTimeout(() => setAuthBootstrapping(false), safetyMs);
-      void (async () => {
-        try {
-          const nextPath = safeInternalNextPath(nextParamRef.current);
-          const profile = await resolveUserProfile(user.uid);
-          if (!hasValidShopSlug(profile.shopSlug)) {
-            if (forcingLogout) return;
-            forcingLogout = true;
-            await Promise.race([
-              forceLogoutMissingShop(),
-              new Promise<void>((r) => setTimeout(r, 12000)),
-            ]);
-            return;
-          }
-          syncTrialUiSessionFlag({
-            shopSlug: profile.shopSlug,
-            registrationTrial: profile.registrationTrial,
-          });
-          let idToken: string;
-          try {
-            idToken = await user.getIdToken();
-          } catch {
-            setError("Không lấy được token phiên. Thử tải lại trang.");
-            return;
-          }
-          const sessionOk = await postSessionCookieWithRetries(idToken, {
-            shopSlug: profile.shopSlug,
-          });
-          if (!sessionOk) {
-            setError("Chưa đồng bộ cookie phiên. Kiểm tra mạng rồi tải lại trang.");
-            return;
-          }
-          if (nextPath?.startsWith("/admin")) {
-            window.location.assign(nextPath);
-            return;
-          }
-          if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
-            router.replace(toPaymentRequiredPath(profile.shopSlug));
-            return;
-          }
-          if (nextPath) {
-            router.replace(nextPath);
-            return;
-          }
-          if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
-          else router.replace("/account");
-        } catch {
-          // Mạng / tunnel: cho phép đăng nhập lại tay
-        } finally {
-          window.clearTimeout(safetyId);
-          window.setTimeout(() => setAuthBootstrapping(false), 250);
-        }
-      })();
+      void restoreLoggedInSession(user);
     });
     return () => unsub();
-  }, [router]);
+  }, [restoreLoggedInSession]);
 
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
