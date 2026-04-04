@@ -97,10 +97,13 @@ function PaymentRequiredContent() {
     const rt = profile.registrationTrial;
     const reg =
       rt === true || rt === "true" ? true : rt === false || rt === "false" ? false : null;
+    const paymentStatus = String(profile.paymentStatus || "").trim();
     const paid = isProfilePaidForAppAccess({
-      paymentStatus: String(profile.paymentStatus || ""),
+      paymentStatus,
       registrationTrial: reg,
     });
+    /** pending_upgrade vẫn được vào POS nhưng phải ở lại trang CK nâng cấp — không auto về shop. */
+    const skipPaymentWall = paid && paymentStatus !== "pending_upgrade";
     if (!hasValidShopSlug(resolvedShop)) {
       if (!forcingLogout) {
         setForcingLogout(true);
@@ -121,7 +124,7 @@ function PaymentRequiredContent() {
         "Tài khoản chưa có tên cửa hàng. Nếu bạn vừa đăng ký, hãy thử đăng ký lại; nếu đã dùng lâu, vui lòng liên hệ hỗ trợ.",
       );
     }
-    if (paid) {
+    if (skipPaymentWall) {
       const slug = String(resolvedShop || "").trim();
       if (!slug) return false;
       const u = getAuthClient().getCurrentUser();
