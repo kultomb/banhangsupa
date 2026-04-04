@@ -177,7 +177,7 @@ function LoginContent() {
             return;
           }
           if (nextPath?.startsWith("/admin")) {
-            router.replace(nextPath);
+            window.location.assign(nextPath);
             return;
           }
           if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
@@ -288,7 +288,7 @@ function LoginContent() {
       });
       const nextPath = safeInternalNextPath(searchParams.get("next"));
       if (nextPath?.startsWith("/admin")) {
-        router.replace(nextPath);
+        window.location.assign(nextPath);
         return;
       }
       if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {

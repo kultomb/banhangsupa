@@ -26,7 +26,12 @@ export async function POST(request: Request) {
     const profileShopSlug = await getUserShopServerService().resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));
     const shopSlug = profileShopSlug || requestShopSlug;
-    const isHttps = request.headers.get("x-forwarded-proto") === "https" || process.env.NODE_ENV === "production";
+    /** Chỉ Secure khi thực sự HTTPS. `next start` trên localhost vẫn là production — Secure + http:// = cookie bị bỏ, /admin luôn về login. */
+    const forwarded = (request.headers.get("x-forwarded-proto") || "")
+      .split(",")[0]
+      ?.trim()
+      .toLowerCase();
+    const isHttps = forwarded === "https";
 
     const jar = await cookies();
     jar.set(COOKIE_NAME, idToken, {
