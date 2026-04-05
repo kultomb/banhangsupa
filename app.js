@@ -586,6 +586,8 @@ class HamobileBanhang {
         this.productsPage = 1;
         this.productsPerPage = 50;
         this.inventoryStatusFilter = 'all'; // 'all' | 'low' | 'warning' | 'good'
+        this.inventoryPage = 1;
+        this.inventoryPerPage = 50;
         this.demoData = this.generateDemoData(); // Tạm dùng demo cho đến khi load xong
         this._ready = false;
         this._saveDebounceTimer = null;
@@ -1519,8 +1521,14 @@ class HamobileBanhang {
         return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
     }
 
+    /** Nhãn cột ngắn (d/m) — dùng quý/năm để vừa một dòng; tooltip vẫn dùng format đầy đủ. */
+    formatTrendBarLabelCompact(isoYmd) {
+        const { d, m } = this.parseVietnamYmd(isoYmd);
+        return `${d}/${m}`;
+    }
+
     /** Gộp doanh thu đơn (đã chốt) + sửa chữa (Đã trả) theo ngày trong kỳ, tối đa maxBars cột. */
-    buildTrendRevenueBuckets(fromKey, toKey, allOrders, allRepairs, maxBars = 12) {
+    buildTrendRevenueBuckets(fromKey, toKey, allOrders, allRepairs, maxBars = 12, useCompactBarLabels = false) {
         const days = [];
         let k = fromKey;
         let guard = 0;
@@ -1555,11 +1563,16 @@ class HamobileBanhang {
             chunk.forEach((day) => {
                 revenue += dayRevenue(day);
             });
-            const label =
+            const labelFull =
                 f === t
                     ? this.formatTrendBarLabel(f)
                     : `${this.formatTrendBarLabel(f)}–${this.formatTrendBarLabel(t)}`;
-            buckets.push({ label, revenue });
+            const label = useCompactBarLabels
+                ? f === t
+                    ? this.formatTrendBarLabelCompact(f)
+                    : `${this.formatTrendBarLabelCompact(f)}–${this.formatTrendBarLabelCompact(t)}`
+                : labelFull;
+            buckets.push({ label, labelTitle: labelFull, revenue });
         }
         return buckets;
     }
@@ -1639,17 +1652,19 @@ class HamobileBanhang {
         this._dashboardVnClockId = setInterval(tick, 1000);
     }
 
-    // Helper function để sắp xếp đơn hàng theo ngày mới nhất
+    // Sắp xếp đơn theo ngày (YYYY-MM-DD chuẩn hóa) + giờ — khớp lọc báo cáo VN
     sortOrdersByDate(orders) {
+        const ymd = (o) => this.normalizeRecordDateToYmd(o && o.date) || '';
+        const hm = (o) => {
+            const raw = String((o && o.time) || '00:00').trim();
+            const m = raw.match(/^(\d{1,2}):(\d{2})/);
+            if (!m) return '00:00';
+            return `${String(m[1]).padStart(2, '0')}:${m[2]}`;
+        };
         return [...orders].sort((a, b) => {
-            // Tạo đối tượng Date để so sánh
-            const dateA = new Date(a.date + (a.time ? ' ' + a.time : ' 00:00:00'));
-            const dateB = new Date(b.date + (b.time ? ' ' + b.time : ' 00:00:00'));
-            
-            const timeA = isNaN(dateA.getTime()) ? new Date(a.date).getTime() : dateA.getTime();
-            const timeB = isNaN(dateB.getTime()) ? new Date(b.date).getTime() : dateB.getTime();
-            
-            return timeB - timeA; // Mới nhất lên trên
+            const c = ymd(b).localeCompare(ymd(a));
+            if (c !== 0) return c;
+            return hm(b).localeCompare(hm(a));
         });
     }
 
@@ -2424,6 +2439,178 @@ class HamobileBanhang {
             </div>`;
         }).join('');
     }
+
+    getInventoryProductStock(p) {
+        if (!p) return 0;
+        return p.hasImei && p.imeis ? (p.stock != null ? p.stock : p.imeis.length) : p.stock || 0;
+    }
+
+    getInventoryProductMinStock(p) {
+        if (!p) return 1;
+        return p.hasImei && p.imeis ? 0 : p.minStock ?? 1;
+    }
+
+    getInventoryProductStockStatus(product) {
+        const stockVal = this.getInventoryProductStock(product);
+        const minVal = this.getInventoryProductMinStock(product);
+        if (stockVal === 0) return 'out';
+        if (minVal > 0 && stockVal <= minVal) return 'low';
+        if (minVal > 0 && stockVal <= minVal * 1.5) return 'warning';
+        return 'good';
+    }
+
+    getFilteredInventoryProducts() {
+        const invFilter = this.inventoryStatusFilter || 'all';
+        const list = (this.demoData.products || []).filter((product) => {
+            const stockStatus = this.getInventoryProductStockStatus(product);
+            if (invFilter === 'all') return true;
+            if (invFilter === 'low') return stockStatus === 'out' || stockStatus === 'low';
+            if (invFilter === 'warning') return stockStatus === 'warning';
+            if (invFilter === 'good') return stockStatus === 'good';
+            return true;
+        });
+        return [...list].reverse();
+    }
+
+    normalizeInventoryPerPage() {
+        const allowed = [10, 20, 50, 100];
+        let v = parseInt(this.inventoryPerPage, 10);
+        if (!allowed.includes(v)) v = 50;
+        this.inventoryPerPage = v;
+        return v;
+    }
+
+    getInventoryListPagination() {
+        const allFiltered = this.getFilteredInventoryProducts();
+        const totalFiltered = allFiltered.length;
+        const perPage = this.normalizeInventoryPerPage();
+        const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage) || 1);
+        let page = Math.max(1, Math.min(this.inventoryPage || 1, totalPages));
+        this.inventoryPage = page;
+        const startIdx = (page - 1) * perPage;
+        const pageSlice = allFiltered.slice(startIdx, startIdx + perPage);
+        return { allFiltered, pageSlice, page, totalPages, perPage, startIdx, totalFiltered };
+    }
+
+    getInventoryPaginationFooterHtml(meta) {
+        const { page, totalPages, perPage, startIdx, totalFiltered } = meta;
+        return `<div class="products-pagination">
+                                <span class="products-pagination-label">Hiển thị</span>
+                                <select id="inventory-per-page" onchange="app.setInventoryPerPage(parseInt(this.value,10))" class="products-per-page-select">
+                                    <option value="10" ${perPage === 10 ? 'selected' : ''}>10 dòng</option>
+                                    <option value="20" ${perPage === 20 ? 'selected' : ''}>20 dòng</option>
+                                    <option value="50" ${perPage === 50 ? 'selected' : ''}>50 dòng</option>
+                                    <option value="100" ${perPage === 100 ? 'selected' : ''}>100 dòng</option>
+                                </select>
+                                <div class="products-pagination-nav">
+                                    <button type="button" class="products-pagination-btn" onclick="app.setInventoryPage(1)" ${page <= 1 ? 'disabled' : ''} title="Trang đầu">≪</button>
+                                    <button type="button" class="products-pagination-btn" onclick="app.setInventoryPage(${page - 1})" ${page <= 1 ? 'disabled' : ''} title="Trang trước">‹</button>
+                                    <span class="products-pagination-current">${page}</span>
+                                    <button type="button" class="products-pagination-btn" onclick="app.setInventoryPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''} title="Trang sau">›</button>
+                                    <button type="button" class="products-pagination-btn" onclick="app.setInventoryPage(${totalPages})" ${page >= totalPages ? 'disabled' : ''} title="Trang cuối">≫</button>
+                                </div>
+                                <span class="products-pagination-info">${totalFiltered > 0 ? `${startIdx + 1} - ${Math.min(startIdx + perPage, totalFiltered)} trong ${totalFiltered} sản phẩm (đã lọc)` : '0 sản phẩm'}</span>
+                            </div>`;
+    }
+
+    getInventoryDesktopHeaderHtml() {
+        return `<div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
+                            <div>Sản phẩm</div>
+                            <div>Giá bán</div>
+                            <div>Tồn kho</div>
+                            <div>Tối thiểu</div>
+                            <div>Trạng thái</div>
+                            <div>Thao tác</div>
+                        </div>`;
+    }
+
+    getInventoryDesktopRowsHtml(products) {
+        if (!products || products.length === 0) {
+            return '<div style="padding: 24px; text-align: center; color: #6b7280; font-size: 14px;">Không có sản phẩm phù hợp bộ lọc.</div>';
+        }
+        return products
+            .map((product, index) => {
+                const stockVal = this.getInventoryProductStock(product);
+                const minVal = this.getInventoryProductMinStock(product);
+                const stockStatus = this.getInventoryProductStockStatus(product);
+                const statusColor =
+                    stockStatus === 'out' || stockStatus === 'low'
+                        ? '#ef4444'
+                        : stockStatus === 'warning'
+                          ? '#f59e0b'
+                          : '#10b981';
+                const statusText =
+                    stockStatus === 'out'
+                        ? 'Hết hàng'
+                        : stockStatus === 'low'
+                          ? 'Sắp hết'
+                          : stockStatus === 'warning'
+                            ? 'Ít hàng'
+                            : 'Đủ hàng';
+                const statusIcon =
+                    stockStatus === 'out' ? '🚫' : stockStatus === 'low' ? '⚠️' : stockStatus === 'warning' ? '⚡' : '✅';
+                return `
+                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; border-bottom: 1px solid #f1f5f9; align-items: center; ${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                                    <div>
+                                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${escapeHtml(product.name)}</div>
+                                        <div style="font-size: 12px; color: #6b7280;">${escapeHtml(product.id)} • ${escapeHtml(product.category)}</div>
+                                    </div>
+                                    <div style="font-weight: 500; color: #1f2937;">
+                                        ${(product.price != null ? product.price : 0).toLocaleString('vi-VN')} VNĐ
+                                    </div>
+                                    <div style="font-weight: 600; color: ${statusColor};">
+                                        ${stockVal}
+                                    </div>
+                                    <div style="color: #6b7280;">
+                                        ${minVal}
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-size: 16px;">${statusIcon}</span>
+                                        <span style="color: ${statusColor}; font-weight: 500; font-size: 13px;">${statusText}</span>
+                                    </div>
+                                    <button onclick="app.showProductDetail('${product.id}')" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500;">
+                                        Chi tiết
+                                    </button>
+                                </div>
+                            `;
+            })
+            .join('');
+    }
+
+    getInventoryDesktopTableInnerHtml(products) {
+        return this.getInventoryDesktopHeaderHtml() + this.getInventoryDesktopRowsHtml(products);
+    }
+
+    /** Danh sách Kho hàng trên mobile: chỉ tên + tồn; chạm mở chi tiết (giống layout tab Sản phẩm). */
+    getInventoryMobileListHtml(products) {
+        if (!products || products.length === 0) {
+            return '<div class="products-mobile-empty inventory-mobile-empty">Không có sản phẩm phù hợp bộ lọc.</div>';
+        }
+        return products
+            .map((product) => {
+                const stockVal = this.getInventoryProductStock(product);
+                const stockStatus = this.getInventoryProductStockStatus(product);
+                const statusColor =
+                    stockStatus === 'out' || stockStatus === 'low'
+                        ? '#ef4444'
+                        : stockStatus === 'warning'
+                          ? '#f59e0b'
+                          : '#10b981';
+                const safeId = String(product.id || '')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+                return `<div class="products-mobile-item inventory-mobile-item" role="button" tabindex="0" data-product-id="${safeId}" onclick="app.showProductDetail(this.getAttribute('data-product-id'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();app.showProductDetail(this.getAttribute('data-product-id'));}">
+                <div class="products-mobile-left">
+                    <div class="products-mobile-name">${escapeHtml(product.name)}</div>
+                </div>
+                <div class="products-mobile-right">
+                    <div class="products-mobile-stock" style="color:${statusColor};font-weight:700;">Tồn: ${stockVal}</div>
+                </div>
+            </div>`;
+            })
+            .join('');
+    }
+
     wrapProductNameForTable(name, limit = 17) {
         const normalized = String(name || '').trim();
         if (!normalized) return '-';
@@ -3110,29 +3297,36 @@ class HamobileBanhang {
     }
     
     getInventoryContent() {
-        const getStock = (p) => (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
-        const getMinStock = (p) => (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 1);
-        const totalValue = this.demoData.products.reduce((sum, p) => sum + (getStock(p) * (p.importPrice || 0)), 0);
-        const lowStockProducts = this.demoData.products.filter(p => {
-            const min = getMinStock(p);
-            return min > 0 && getStock(p) <= min; // IMEI (min=0) không cảnh báo sắp hết
+        const totalValue = this.demoData.products.reduce(
+            (sum, p) => sum + this.getInventoryProductStock(p) * (p.importPrice || 0),
+            0
+        );
+        const lowStockProducts = this.demoData.products.filter((p) => {
+            const min = this.getInventoryProductMinStock(p);
+            return min > 0 && this.getInventoryProductStock(p) <= min;
         });
-        const outOfStockProducts = this.demoData.products.filter(p => getStock(p) === 0);
-        const overStockProducts = this.demoData.products.filter(p => getMinStock(p) > 0 && getStock(p) > getMinStock(p) * 3);
-        
+        const outOfStockProducts = this.demoData.products.filter((p) => this.getInventoryProductStock(p) === 0);
+        const overStockProducts = this.demoData.products.filter((p) => {
+            const min = this.getInventoryProductMinStock(p);
+            return min > 0 && this.getInventoryProductStock(p) > min * 3;
+        });
+        const invPag = this.getInventoryListPagination();
+        const inventoryPageSlice = invPag.pageSlice;
+        const invSel = this.inventoryStatusFilter || 'all';
+
         return `
             <div class="fade-in">
                 <!-- Cảnh báo hàng sắp hết -->
                 ${lowStockProducts.length > 0 ? `
-                <div class="inventory-low-stock-alert">
-                    <div class="inventory-low-stock-header">
+                <details class="inventory-low-stock-alert inventory-stock-alert-collapsible">
+                    <summary class="inventory-low-stock-header">
                         <span class="inventory-low-stock-icon">⚠️</span>
                         <div style="flex: 1;">
                             <h3 class="inventory-low-stock-title">Cảnh báo: ${lowStockProducts.length} sản phẩm sắp hết hàng!</h3>
-                            <p class="inventory-low-stock-desc">Các sản phẩm dưới đây đã dưới ngưỡng tồn kho tối thiểu</p>
+                            <p class="inventory-low-stock-desc">Đã dưới ngưỡng tồn tối thiểu — nhấn để xem danh sách chi tiết.</p>
                         </div>
-                        <button type="button" class="inventory-low-stock-btn" onclick="app.showLowStockCopyModal()">📥 Nhập ngay</button>
-                    </div>
+                        <button type="button" class="inventory-low-stock-btn" onclick="event.preventDefault();event.stopPropagation();app.showLowStockCopyModal()">📥 Nhập ngay</button>
+                    </summary>
                     <div class="inventory-low-stock-grid">
                         ${lowStockProducts.map(p => {
                             const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
@@ -3145,20 +3339,20 @@ class HamobileBanhang {
                             </div>
                         `}).join('')}
                     </div>
-                </div>
+                </details>
                 ` : ''}
                 
                 <!-- Cảnh báo sản phẩm hết hàng -->
                 ${outOfStockProducts.length > 0 ? `
-                <div class="inventory-out-of-stock-alert">
-                    <div class="inventory-out-of-stock-header">
+                <details class="inventory-out-of-stock-alert inventory-stock-alert-collapsible">
+                    <summary class="inventory-out-of-stock-header">
                         <span class="inventory-out-of-stock-icon">🚫</span>
                         <div style="flex: 1;">
                             <h3 class="inventory-out-of-stock-title">Cảnh báo: ${outOfStockProducts.length} sản phẩm hết hàng!</h3>
-                            <p class="inventory-out-of-stock-desc">Các sản phẩm dưới đây không còn tồn kho, cần nhập ngay để bán được</p>
+                            <p class="inventory-out-of-stock-desc">Không còn tồn kho — nhấn để xem danh sách chi tiết.</p>
                         </div>
-                        <button type="button" class="inventory-out-of-stock-btn" onclick="app.showOutOfStockCopyModal()">📥 Nhập ngay</button>
-                    </div>
+                        <button type="button" class="inventory-out-of-stock-btn" onclick="event.preventDefault();event.stopPropagation();app.showOutOfStockCopyModal()">📥 Nhập ngay</button>
+                    </summary>
                     <div class="inventory-out-of-stock-grid">
                         ${outOfStockProducts.map(p => {
                             return `
@@ -3168,7 +3362,7 @@ class HamobileBanhang {
                             </div>
                         `}).join('')}
                     </div>
-                </div>
+                </details>
                 ` : ''}
                 
                 <div class="stats-grid" style="margin-bottom: 24px;">
@@ -3230,72 +3424,22 @@ class HamobileBanhang {
                         </div>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h3 style="margin: 0; color: var(--text-primary);">Danh sách sản phẩm trong kho</h3>
-                        <div style="display: flex; gap: 8px; font-size: 12px; flex-wrap: wrap;">
-                            <span class="inventory-filter-chip" data-filter="all" onclick="app.setInventoryStatusFilter('all')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s; ${(this.inventoryStatusFilter || 'all') === 'all' ? 'background: #e5e7eb; font-weight: 600;' : 'background: #f3f4f6;'}">Tất cả</span>
-                            <span class="inventory-filter-chip" data-filter="low" onclick="app.setInventoryStatusFilter('low')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s; ${(this.inventoryStatusFilter || 'all') === 'low' ? 'background: #fecaca; font-weight: 600;' : 'background: transparent;'}"><span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%; display: inline-block;"></span>Sắp hết</span>
-                            <span class="inventory-filter-chip" data-filter="warning" onclick="app.setInventoryStatusFilter('warning')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s; ${(this.inventoryStatusFilter || 'all') === 'warning' ? 'background: #fed7aa; font-weight: 600;' : 'background: transparent;'}"><span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span>Ít hàng</span>
-                            <span class="inventory-filter-chip" data-filter="good" onclick="app.setInventoryStatusFilter('good')" style="display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s; ${(this.inventoryStatusFilter || 'all') === 'good' ? 'background: #a7f3d0; font-weight: 600;' : 'background: transparent;'}"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block;"></span>Đủ hàng</span>
+                    <div class="inventory-list-toolbar">
+                        <h3 class="inventory-list-title">Danh sách sản phẩm trong kho</h3>
+                        <div class="inventory-filter-chips" role="group" aria-label="Lọc theo trạng thái tồn">
+                            <span class="inventory-filter-chip${invSel === 'all' ? ' inventory-filter-chip--on' : ''}" data-filter="all" onclick="app.setInventoryStatusFilter('all')">Tất cả</span>
+                            <span class="inventory-filter-chip${invSel === 'low' ? ' inventory-filter-chip--on' : ''}" data-filter="low" onclick="app.setInventoryStatusFilter('low')"><span class="inventory-filter-dot inventory-filter-dot--red"></span>Sắp hết</span>
+                            <span class="inventory-filter-chip${invSel === 'warning' ? ' inventory-filter-chip--on' : ''}" data-filter="warning" onclick="app.setInventoryStatusFilter('warning')"><span class="inventory-filter-dot inventory-filter-dot--amber"></span>Ít hàng</span>
+                            <span class="inventory-filter-chip${invSel === 'good' ? ' inventory-filter-chip--on' : ''}" data-filter="good" onclick="app.setInventoryStatusFilter('good')"><span class="inventory-filter-dot inventory-filter-dot--green"></span>Đủ hàng</span>
                         </div>
                     </div>
                     
-                    <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
-                            <div>Sản phẩm</div>
-                            <div>Giá bán</div>
-                            <div>Tồn kho</div>
-                            <div>Tối thiểu</div>
-                            <div>Trạng thái</div>
-                            <div>Thao tác</div>
+                    <div class="inventory-products-panel" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div id="inventory-mobile-list" class="inventory-mobile-list products-mobile-list">${this.getInventoryMobileListHtml(inventoryPageSlice)}</div>
+                        <div class="inventory-desktop-only">
+                        <div id="inventory-desktop-table-inner">${this.getInventoryDesktopTableInnerHtml(inventoryPageSlice)}</div>
                         </div>
-                        ${(() => {
-                            const filter = this.inventoryStatusFilter || 'all';
-                            let filtered = this.demoData.products.filter(product => {
-                                const stockVal = (product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
-                                const minVal = (product.hasImei && product.imeis) ? 0 : (product.minStock ?? 1);
-                                const stockStatus = stockVal === 0 ? 'out' : minVal > 0 && stockVal <= minVal ? 'low' : minVal > 0 && stockVal <= minVal * 1.5 ? 'warning' : 'good';
-                                if (filter === 'all') return true;
-                                if (filter === 'low') return stockStatus === 'out' || stockStatus === 'low';
-                                if (filter === 'warning') return stockStatus === 'warning';
-                                if (filter === 'good') return stockStatus === 'good';
-                                return true;
-                            });
-                            filtered = [...filtered].reverse(); // Mới nhất trước, giống trang Sản phẩm
-                            return filtered.map((product, index) => {
-                            const stockVal = (product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
-                            const minVal = (product.hasImei && product.imeis) ? 0 : (product.minStock ?? 1);
-                            const stockStatus = stockVal === 0 ? 'out' : minVal > 0 && stockVal <= minVal ? 'low' : minVal > 0 && stockVal <= minVal * 1.5 ? 'warning' : 'good';
-                            const statusColor = stockStatus === 'out' ? '#ef4444' : stockStatus === 'low' ? '#ef4444' : stockStatus === 'warning' ? '#f59e0b' : '#10b981';
-                            const statusText = stockStatus === 'out' ? 'Hết hàng' : stockStatus === 'low' ? 'Sắp hết' : stockStatus === 'warning' ? 'Ít hàng' : 'Đủ hàng';
-                            const statusIcon = stockStatus === 'out' ? '🚫' : stockStatus === 'low' ? '⚠️' : stockStatus === 'warning' ? '⚡' : '✅';
-                            
-                            return `
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; border-bottom: 1px solid #f1f5f9; align-items: center; ${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
-                                    <div>
-                                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${escapeHtml(product.name)}</div>
-                                        <div style="font-size: 12px; color: #6b7280;">${escapeHtml(product.id)} • ${escapeHtml(product.category)}</div>
-                                    </div>
-                                    <div style="font-weight: 500; color: #1f2937;">
-                                        ${product.price.toLocaleString('vi-VN')} VNĐ
-                                    </div>
-                                    <div style="font-weight: 600; color: ${statusColor};">
-                                        ${stockVal}
-                                    </div>
-                                    <div style="color: #6b7280;">
-                                        ${minVal}
-                                    </div>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <span style="font-size: 16px;">${statusIcon}</span>
-                                        <span style="color: ${statusColor}; font-weight: 500; font-size: 13px;">${statusText}</span>
-                                    </div>
-                                    <button onclick="app.showProductDetail('${product.id}')" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500;">
-                                        Chi tiết
-                                    </button>
-                                </div>
-                            `;
-                        }).join('');
-                        })()}
+                        <div id="inventory-list-footer" class="products-table-footer" style="border-top: 1px solid #e5e7eb;">${this.getInventoryPaginationFooterHtml(invPag)}</div>
                     </div>
                 </div>
             </div>
@@ -6737,25 +6881,55 @@ class HamobileBanhang {
         return Math.max(0, repairCost - partsCost);
     }
 
+    /** Một dòng bảng đơn — trang Báo cáo (dùng lại khi đổi lọc ngày). */
+    getReportsOrderTableRowHtml(o) {
+        const productsStr = (o.products || [])
+            .map((p) => (p.name || p.productName || '-') + ' x' + (p.quantity || 1))
+            .join(', ');
+        const ymd = this.normalizeRecordDateToYmd(o.date);
+        const timePart = o.time ? ' ' + escapeHtml(String(o.time).trim()) : '';
+        const dateCell = ymd
+            ? `${this.formatDateForDisplay(ymd)}${timePart}`
+            : escapeHtml(String(o.date || '—'));
+        return `<tr style="border-bottom: 1px solid #e5e7eb;">
+                                        <td style="padding: 12px;">${(o.id || '').replace(/</g, '&lt;')}</td>
+                                        <td style="padding: 12px; white-space: nowrap; font-size: 13px;">${dateCell}</td>
+                                        <td style="padding: 12px;">${(o.customerName || '-').replace(/</g, '&lt;')}</td>
+                                        <td style="padding: 12px; max-width: 360px; font-size: 13px;" title="${(productsStr || '-').replace(/"/g, '&quot;')}">${(productsStr || '-').replace(/</g, '&lt;').substring(0, 80)}${(productsStr || '').length > 80 ? '…' : ''}</td>
+                                        <td style="padding: 12px; text-align: right; font-weight: 600;">${(o.total || 0).toLocaleString('vi-VN')} đ</td>
+                                        <td style="padding: 12px;"><span style="padding: 3px 8px; border-radius: 6px; font-size: 11px; background: ${o.paymentStatus === 'Đã thanh toán' ? '#dcfce7' : '#fef3c7'}; color: ${o.paymentStatus === 'Đã thanh toán' ? '#166534' : '#b45309'};">${(o.paymentStatus || '-').replace(/</g, '&lt;')}</span></td>
+                                        <td style="padding: 12px;">${(o.status || '-').replace(/</g, '&lt;')}</td>
+                                    </tr>`;
+    }
+
+    /** Cập nhật bảng đơn trên Báo cáo sau khi đổi khoảng ngày (tránh giữ HTML cũ). */
+    refreshReportsOrdersPanel(filteredOrders) {
+        const section = document.getElementById('reports-orders-section');
+        const tbody = document.getElementById('reports-orders-tbody');
+        const h3 = section ? section.querySelector('h3') : null;
+        if (!section || !tbody) return;
+        const list = filteredOrders || [];
+        if (list.length === 0) {
+            section.style.display = 'none';
+            tbody.innerHTML = '';
+            if (h3) h3.innerHTML = '<span>📋</span> Đơn hàng trong khoảng chọn (0)';
+            return;
+        }
+        section.style.display = '';
+        if (h3) h3.innerHTML = `<span>📋</span> Đơn hàng trong khoảng chọn (${list.length})`;
+        tbody.innerHTML = list.map((o) => this.getReportsOrderTableRowHtml(o)).join('');
+    }
+
     getReportsContent() {
         this.initFilterState();
         const fromDate = (this.filterState && this.filterState.fromDate) || this.getDefaultFromDate();
         const toDate = (this.filterState && this.filterState.toDate) || this.getDefaultToDate();
-        const filteredOrders = (this.demoData.orders || []).filter(order => {
-            const orderDate = new Date(order.date);
-            const startDate = new Date(fromDate);
-            const endDate = new Date(toDate);
-            endDate.setHours(23, 59, 59, 999);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
-        const filteredRepairs = (this.demoData.repairs || []).filter(rep => {
-            const repDate = rep.date ? new Date(rep.date) : null;
-            if (!repDate || isNaN(repDate.getTime())) return false;
-            const startDate = new Date(fromDate);
-            const endDate = new Date(toDate);
-            endDate.setHours(23, 59, 59, 999);
-            return repDate >= startDate && repDate <= endDate;
-        });
+        const filteredOrders = (this.demoData.orders || []).filter((order) =>
+            this.orderDateInRange(order, fromDate, toDate)
+        );
+        const filteredRepairs = (this.demoData.repairs || []).filter((rep) =>
+            this.repairDateInRange(rep, fromDate, toDate)
+        );
         const repairRevenue = filteredRepairs.reduce((s, r) => {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
@@ -6858,6 +7032,7 @@ class HamobileBanhang {
                             <thead>
                                 <tr style="background: #f8fafc;">
                                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Mã đơn</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Ngày (theo đơn)</th>
                                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Khách hàng</th>
                                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Sản phẩm</th>
                                     <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Tổng tiền</th>
@@ -6865,18 +7040,8 @@ class HamobileBanhang {
                                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Trạng thái</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                ${filteredOrders.map(o => {
-                                    const productsStr = (o.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ');
-                                    return `<tr style="border-bottom: 1px solid #e5e7eb;">
-                                        <td style="padding: 12px;">${(o.id || '').replace(/</g, '&lt;')}</td>
-                                        <td style="padding: 12px;">${(o.customerName || '-').replace(/</g, '&lt;')}</td>
-                                        <td style="padding: 12px; max-width: 360px; font-size: 13px;" title="${(productsStr || '-').replace(/"/g, '&quot;')}">${(productsStr || '-').replace(/</g, '&lt;').substring(0, 80)}${(productsStr || '').length > 80 ? '…' : ''}</td>
-                                        <td style="padding: 12px; text-align: right; font-weight: 600;">${(o.total || 0).toLocaleString('vi-VN')} đ</td>
-                                        <td style="padding: 12px;"><span style="padding: 3px 8px; border-radius: 6px; font-size: 11px; background: ${o.paymentStatus === 'Đã thanh toán' ? '#dcfce7' : '#fef3c7'}; color: ${o.paymentStatus === 'Đã thanh toán' ? '#166534' : '#b45309'};">${(o.paymentStatus || '-').replace(/</g, '&lt;')}</span></td>
-                                        <td style="padding: 12px;">${(o.status || '-').replace(/</g, '&lt;')}</td>
-                                    </tr>`;
-                                }).join('')}
+                            <tbody id="reports-orders-tbody">
+                                ${filteredOrders.map((o) => this.getReportsOrderTableRowHtml(o)).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -7135,14 +7300,35 @@ class HamobileBanhang {
         });
         const customersInPeriod = custInPeriod.size;
 
+        const quarterYearTrend =
+            periodKey === 'this_quarter' ||
+            periodKey === 'last_quarter' ||
+            periodKey === 'this_year' ||
+            periodKey === 'last_year';
         const chartBuckets = this.buildTrendRevenueBuckets(
             range.from,
             range.to,
             allOrders,
             allRepairs,
-            12
+            12,
+            quarterYearTrend
         );
         const maxChartRev = Math.max(...chartBuckets.map((b) => b.revenue), 1);
+        const trendChartCompactLabels = [
+            'this_month',
+            'last_month',
+            'this_quarter',
+            'last_quarter',
+            'this_year',
+            'last_year'
+        ].includes(periodKey);
+        const trendBarChartClass = [
+            'dashboard-trend-bar-chart',
+            trendChartCompactLabels ? 'dashboard-trend-bar-chart--compact-labels' : '',
+            quarterYearTrend ? 'dashboard-trend-bar-chart--quarter-year' : ''
+        ]
+            .filter(Boolean)
+            .join(' ');
 
         const productSales = {};
         finalizedOrders.forEach((order) => {
@@ -7177,7 +7363,7 @@ class HamobileBanhang {
                                         <div class="dashboard-trend-bar" style="background:${color};height:${Math.max(4, height)}px;">
                                             <span class="dashboard-trend-bar-tip">${this.formatTrendChartTip(item.revenue)}</span>
                                         </div>
-                                        <div class="dashboard-trend-bar-label">${item.label}</div>
+                                        <div class="dashboard-trend-bar-label" title="${escapeHtml(item.labelTitle != null ? item.labelTitle : item.label)}">${escapeHtml(item.label)}</div>
                                     </div>`;
                       })
                       .join('')
@@ -7189,7 +7375,7 @@ class HamobileBanhang {
                     <div class="dashboard-trend-header-row">
                         <div>
                             <h2 class="section-title dashboard-trend-title">📊 Báo cáo Phân tích Xu hướng Kinh doanh</h2>
-                            <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to} (giờ VN)</p>
+                            <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to}</p>
                         </div>
                         <div class="dashboard-trend-period-wrap">
                             <label class="dashboard-trend-period-label" for="dashboard-trend-period">Kỳ</label>
@@ -7218,7 +7404,7 @@ class HamobileBanhang {
                 <div class="dashboard-trend-row dashboard-trend-row--2-1">
                     <div class="dashboard-trend-panel">
                         <h3 class="dashboard-trend-panel-title">📈 Doanh thu theo thời gian (chuẩn báo cáo)</h3>
-                        <div class="dashboard-trend-bar-chart">
+                        <div class="${trendBarChartClass}">
                             ${chartBarsHtml}
                         </div>
                     </div>
@@ -13797,8 +13983,47 @@ class HamobileBanhang {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
+    refreshInventoryProductList() {
+        if (this.currentPage !== 'inventory') return;
+        const invPag = this.getInventoryListPagination();
+        const mobile = document.getElementById('inventory-mobile-list');
+        if (mobile) mobile.innerHTML = this.getInventoryMobileListHtml(invPag.pageSlice);
+        const desk = document.getElementById('inventory-desktop-table-inner');
+        if (desk) desk.innerHTML = this.getInventoryDesktopTableInnerHtml(invPag.pageSlice);
+        const foot = document.getElementById('inventory-list-footer');
+        if (foot) foot.innerHTML = this.getInventoryPaginationFooterHtml(invPag);
+        document.querySelectorAll('.inventory-filter-chips .inventory-filter-chip').forEach((el) => {
+            const f = el.getAttribute('data-filter') || 'all';
+            el.classList.toggle('inventory-filter-chip--on', (this.inventoryStatusFilter || 'all') === f);
+        });
+    }
+
+    setInventoryPage(page) {
+        const p = Math.max(1, parseInt(page, 10) || 1);
+        this.inventoryPage = p;
+        if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
+            this.refreshInventoryProductList();
+        }
+    }
+
+    setInventoryPerPage(n) {
+        const allowed = [10, 20, 50, 100];
+        let v = parseInt(n, 10);
+        if (!allowed.includes(v)) v = 50;
+        this.inventoryPerPage = v;
+        this.inventoryPage = 1;
+        if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
+            this.refreshInventoryProductList();
+        }
+    }
+
     setInventoryStatusFilter(filter) {
         this.inventoryStatusFilter = filter || 'all';
+        this.inventoryPage = 1;
+        if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
+            this.refreshInventoryProductList();
+            return;
+        }
         this.loadPage('inventory');
     }
 
@@ -17648,8 +17873,41 @@ class HamobileBanhang {
     }
 
     formatDateForDisplay(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('vi-VN');
+        const s = String(dateString || '').trim();
+        const p = s.split('-');
+        if (p.length === 3 && /^\d{4}$/.test(p[0]) && /^\d{2}$/.test(p[1]) && /^\d{2}$/.test(p[2])) {
+            return `${p[2]}/${p[1]}/${p[0]}`;
+        }
+        const d = new Date(s);
+        return !isNaN(d.getTime()) ? d.toLocaleDateString('vi-VN') : s || '—';
+    }
+
+    /** Khoảng ngày (YYYY-MM-DD) lựa chọn nhanh trên báo cáo / xuất — lịch VN, khớp phân tích xu hướng. */
+    getReportsQuickDateRangeKeys(value) {
+        const map = {
+            today: 'today',
+            yesterday: 'yesterday',
+            'this-week': 'this_week',
+            'last-week': 'last_week',
+            'this-month': 'this_month',
+            'last-month': 'last_month',
+            'this-year': 'this_year',
+            'last-year': 'last_year'
+        };
+        const period = map[value];
+        if (period) {
+            const r = this.getTrendAnalysisPeriodRange(period);
+            return { from: r.from, to: r.to };
+        }
+        if (value === 'last-30-days') {
+            const t = this.getVietnamDateKey();
+            return { from: this.addDaysToVietnamDateKey(t, -29), to: t };
+        }
+        if (value === 'last-90-days') {
+            const t = this.getVietnamDateKey();
+            return { from: this.addDaysToVietnamDateKey(t, -89), to: t };
+        }
+        return null;
     }
 
     // Toggle hiển thị/ẩn bộ lọc
@@ -17672,74 +17930,20 @@ class HamobileBanhang {
     applyQuickFilter(value) {
         const fromDateInput = document.getElementById('filter-from-date');
         const toDateInput = document.getElementById('filter-to-date');
-        const range = this.getQuickDateRange(value);
-        if (!range) return;
-        const { fromDate, toDate } = range;
-
-        if (fromDate && toDate) {
-            fromDateInput.value = fromDate.toISOString ? fromDate.toISOString().split('T')[0] : fromDate;
-            toDateInput.value = toDate.toISOString ? toDate.toISOString().split('T')[0] : toDate;
-            this.applyDateFilter();
-        }
-    }
-    getQuickDateRange(value) {
-        const today = this.getVietnamTime();
-        let fromDate, toDate;
-        switch(value) {
-            case 'today':
-                fromDate = toDate = new Date(today.getTime());
-                break;
-            case 'yesterday':
-                fromDate = toDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-                break;
-            case 'this-week':
-                fromDate = new Date(today);
-                fromDate.setDate(today.getDate() - today.getDay() + 1);
-                toDate = today;
-                break;
-            case 'last-week':
-                fromDate = new Date(today);
-                fromDate.setDate(today.getDate() - today.getDay() - 6);
-                toDate = new Date(today);
-                toDate.setDate(today.getDate() - today.getDay());
-                break;
-            case 'this-month':
-                fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                toDate = today;
-                break;
-            case 'last-month':
-                fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                toDate = new Date(today.getFullYear(), today.getMonth(), 0);
-                break;
-            case 'last-30-days':
-                fromDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-                toDate = today;
-                break;
-            case 'last-90-days':
-                fromDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
-                toDate = today;
-                break;
-            case 'this-year':
-                fromDate = new Date(today.getFullYear(), 0, 1);
-                toDate = today;
-                break;
-            case 'last-year':
-                fromDate = new Date(today.getFullYear() - 1, 0, 1);
-                toDate = new Date(today.getFullYear() - 1, 11, 31);
-                break;
-            default:
-                return null;
-        }
-        return { fromDate, toDate };
+        const r = this.getReportsQuickDateRangeKeys(value);
+        if (!r || !fromDateInput || !toDateInput) return;
+        fromDateInput.value = r.from;
+        toDateInput.value = r.to;
+        this.applyDateFilter();
     }
     applyExportQuickFilter(prefix, value) {
-        const range = this.getQuickDateRange(value);
-        if (!range) return;
+        const r = this.getReportsQuickDateRangeKeys(value);
+        if (!r) return;
         const fromInput = document.getElementById(prefix + 'FromDate');
         const toInput = document.getElementById(prefix + 'ToDate');
         if (!fromInput || !toInput) return;
-        fromInput.value = range.fromDate.toISOString().split('T')[0];
-        toInput.value = range.toDate.toISOString().split('T')[0];
+        fromInput.value = r.from;
+        toInput.value = r.to;
     }
 
     // Áp dụng bộ lọc ngày tháng
@@ -17752,7 +17956,7 @@ class HamobileBanhang {
             return;
         }
 
-        if (new Date(fromDate) > new Date(toDate)) {
+        if (String(fromDate) > String(toDate)) {
             this.showNotification('Ngày bắt đầu không thể sau ngày kết thúc', 'error');
             return;
         }
@@ -17784,21 +17988,13 @@ class HamobileBanhang {
 
     // Lọc dữ liệu báo cáo theo khoảng thời gian
     filterReportsData(fromDate, toDate) {
-        const startDate = new Date(fromDate);
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999); // Include toàn bộ ngày cuối
+        const filteredOrders = (this.demoData.orders || []).filter((order) =>
+            this.orderDateInRange(order, fromDate, toDate)
+        );
 
-        // Lọc đơn hàng theo khoảng thời gian
-        const filteredOrders = this.demoData.orders.filter(order => {
-            const orderDate = new Date(order.date);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
-
-        const filteredRepairs = (this.demoData.repairs || []).filter(rep => {
-            const repDate = rep.date ? new Date(rep.date) : null;
-            if (!repDate || isNaN(repDate.getTime())) return false;
-            return repDate >= startDate && repDate <= endDate;
-        });
+        const filteredRepairs = (this.demoData.repairs || []).filter((rep) =>
+            this.repairDateInRange(rep, fromDate, toDate)
+        );
         const repairRevenue = filteredRepairs.reduce((s, r) => {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
@@ -17820,7 +18016,6 @@ class HamobileBanhang {
         // Cập nhật display thống kê
         this.updateFilteredStats(totalRevenue, totalProfit, totalDebt, filteredOrders.length, profitFromDebt, filteredRepairs.length);
 
-        // Cập nhật danh sách đơn hàng hiển thị
         this.updateOrdersList(filteredOrders);
 
         // Cập nhật danh sách phiếu sửa chữa
@@ -17896,7 +18091,10 @@ class HamobileBanhang {
 
     // Cập nhật danh sách đơn hàng hiển thị theo bộ lọc
     updateOrdersList(filteredOrders) {
-        // Tìm container chứa danh sách đơn hàng
+        if (this.currentPage === 'reports' && document.getElementById('reports-orders-tbody')) {
+            this.refreshReportsOrdersPanel(filteredOrders);
+            return;
+        }
         const ordersContainer = document.querySelector('.orders-list, .order-list, .recent-orders, .order-table tbody');
         if (!ordersContainer) return;
 
@@ -18073,20 +18271,14 @@ class HamobileBanhang {
             return;
         }
 
-        if (new Date(fromDate) > new Date(toDate)) {
+        if (String(fromDate) > String(toDate)) {
             this.showNotification('Ngày bắt đầu không được lớn hơn ngày kết thúc', 'error');
             return;
         }
 
-        const startDate = new Date(fromDate);
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999);
-
-        const filteredRepairs = (this.demoData.repairs || []).filter(rep => {
-            const repDate = rep.date ? new Date(rep.date) : null;
-            if (!repDate || isNaN(repDate.getTime())) return false;
-            return repDate >= startDate && repDate <= endDate;
-        });
+        const filteredRepairs = (this.demoData.repairs || []).filter((rep) =>
+            this.repairDateInRange(rep, fromDate, toDate)
+        );
 
         const repairsData = filteredRepairs.map(r => ({
             id: r.id || 'SC-',
@@ -18152,26 +18344,18 @@ class HamobileBanhang {
             return;
         }
 
-        if (new Date(fromDate) > new Date(toDate)) {
+        if (String(fromDate) > String(toDate)) {
             this.showNotification('Ngày bắt đầu không được lớn hơn ngày kết thúc', 'error');
             return;
         }
 
-        // Lọc dữ liệu đơn hàng theo thời gian
-        const startDate = new Date(fromDate);
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999);
+        const filteredOrders = (this.demoData.orders || []).filter((order) =>
+            this.orderDateInRange(order, fromDate, toDate)
+        );
 
-        const filteredOrders = this.demoData.orders.filter(order => {
-            const orderDate = new Date(order.date);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
-
-        const filteredRepairs = (this.demoData.repairs || []).filter(rep => {
-            const repDate = rep.date ? new Date(rep.date) : null;
-            if (!repDate || isNaN(repDate.getTime())) return false;
-            return repDate >= startDate && repDate <= endDate;
-        });
+        const filteredRepairs = (this.demoData.repairs || []).filter((rep) =>
+            this.repairDateInRange(rep, fromDate, toDate)
+        );
 
         const calcRepairTotal = (r) => (r.status || '') === 'Đã trả' ? (Number(r.repairCost) || 0) : 0;
 
@@ -18186,7 +18370,7 @@ class HamobileBanhang {
                 customer: customer ? customer.name : 'N/A',
                 date: order.date,
                 items: itemCount,
-                total: order.total,
+                total: this.getOrderRecordedNetRevenue(order),
                 paymentStatus: order.paymentStatus,
                 status: order.status
             };
@@ -18202,7 +18386,10 @@ class HamobileBanhang {
             status: r.status || '-'
         }));
 
-        const salesData = [...salesDataOrders, ...salesDataRepairs].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const ymdKey = (d) => this.normalizeRecordDateToYmd(d) || '';
+        const salesData = [...salesDataOrders, ...salesDataRepairs].sort((a, b) =>
+            ymdKey(a.date).localeCompare(ymdKey(b.date))
+        );
 
         // Đóng popup export
         const exportModal = document.querySelector('div[style*="position: fixed"]');
@@ -18222,7 +18409,7 @@ class HamobileBanhang {
                 { header: 'Khách hàng', getValue: sale => sale.customer },
                 { header: 'Ngày', getValue: sale => sale.date },
                 { header: 'Số sản phẩm', getValue: sale => sale.items },
-                { header: 'Tổng tiền (VNĐ)', getValue: sale => sale.total.toLocaleString('vi-VN') },
+                { header: 'Doanh thu ghi nhận (VNĐ)', getValue: sale => sale.total.toLocaleString('vi-VN') },
                 { header: 'Thanh toán', getValue: sale => sale.paymentStatus },
                 { header: 'Trạng thái', getValue: sale => sale.status }
             ];
@@ -18234,7 +18421,7 @@ class HamobileBanhang {
             // Tải xuống CSV
             const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + 
                 `Báo cáo Doanh thu (${this.formatDateForDisplay(fromDate)} - ${this.formatDateForDisplay(toDate)})\n` +
-                "Mã đơn,Khách hàng,Ngày,Số sản phẩm,Tổng tiền,Thanh toán,Trạng thái\n" +
+                "Mã đơn,Khách hàng,Ngày,Số sản phẩm,Doanh thu ghi nhận,Thanh toán,Trạng thái\n" +
                 salesData.map(s => 
                     `${s.id},"${s.customer}","${s.date}",${s.items},${s.total},"${s.paymentStatus}","${s.status}"`
                 ).join('\n');
@@ -18325,20 +18512,14 @@ class HamobileBanhang {
             return;
         }
 
-        if (new Date(fromDate) > new Date(toDate)) {
+        if (String(fromDate) > String(toDate)) {
             this.showNotification('Ngày bắt đầu không được lớn hơn ngày kết thúc', 'error');
             return;
         }
 
-        // Lọc dữ liệu đơn hàng theo thời gian
-        const startDate = new Date(fromDate);
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999);
-
-        const filteredOrders = this.demoData.orders.filter(order => {
-            const orderDate = new Date(order.date);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
+        const filteredOrders = (this.demoData.orders || []).filter((order) =>
+            this.orderDateInRange(order, fromDate, toDate)
+        );
 
         // Sắp xếp đơn hàng trước khi tính toán
         const sortedFilteredOrders = this.sortOrdersByDate(filteredOrders);
@@ -18513,33 +18694,27 @@ class HamobileBanhang {
             return;
         }
 
-        if (new Date(fromDate) > new Date(toDate)) {
+        if (String(fromDate) > String(toDate)) {
             this.showNotification('Ngày bắt đầu không được lớn hơn ngày kết thúc', 'error');
             return;
         }
 
-        // Lọc dữ liệu đơn hàng theo thời gian
-        const startDate = new Date(fromDate);
-        const endDate = new Date(toDate);
-        endDate.setHours(23, 59, 59, 999);
+        const filteredOrders = (this.demoData.orders || []).filter((order) =>
+            this.orderDateInRange(order, fromDate, toDate)
+        );
 
-        const filteredOrders = this.demoData.orders.filter(order => {
-            const orderDate = new Date(order.date);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
-
-        const filteredRepairs = (this.demoData.repairs || []).filter(rep => {
-            const repDate = rep.date ? new Date(rep.date) : null;
-            if (!repDate || isNaN(repDate.getTime())) return false;
-            return repDate >= startDate && repDate <= endDate;
-        });
+        const filteredRepairs = (this.demoData.repairs || []).filter((rep) =>
+            this.repairDateInRange(rep, fromDate, toDate)
+        );
         const repairRevenue = filteredRepairs.reduce((s, r) => {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
         }, 0);
 
-        // Tính toán các chỉ số tài chính
-        const orderRevenue = filteredOrders.filter(order => order.paymentStatus === 'Đã thanh toán' && this.isOrderFinalizedForRevenue(order)).reduce((sum, order) => sum + (order.total || 0), 0);
+        const orderRevenue = filteredOrders.reduce(
+            (sum, order) => sum + this.getOrderRecordedNetRevenue(order),
+            0
+        );
         const totalRevenue = orderRevenue + repairRevenue;
         const totalDebt = this.demoData.customers.reduce((sum, customer) => sum + customer.debt, 0);
         const totalInventoryValue = this.demoData.products.reduce((sum, p) => sum + (p.price * p.stock), 0);

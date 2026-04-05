@@ -2750,6 +2750,26 @@ select.edit-order-inp{
   color:#6b7280;
   font-weight:500;
   text-align:center;
+  line-height:1.2;
+  word-break:keep-all;
+}
+
+/* Tháng / quý / năm: nhãn khoảng ngày dài — giảm 1 bậc để thẳng hàng một dòng */
+#main-content.page-dashboard .dashboard-trend-bar-chart--compact-labels .dashboard-trend-bar-label{
+  font-size:10px;
+}
+
+/* Quý / năm: cột hẹp + nhãn dài — một dòng, chữ nhỏ hơn; rê chuột xem dd/mm đầy đủ */
+#main-content.page-dashboard .dashboard-trend-bar-chart--quarter-year .dashboard-trend-bar-label{
+  font-size:9px;
+  white-space:nowrap;
+  letter-spacing:-0.03em;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  align-self:stretch;
 }
 
 #main-content.page-dashboard .dashboard-trend-donut-wrap{
@@ -3116,6 +3136,127 @@ select.edit-order-inp{
 @media (max-width:768px){
   .activity-icon{
     display:none!important;
+  }
+}
+
+/* Kho hàng: cảnh báo sắp hết / hết hàng — mặc định thu gọn (details không có open) */
+details.inventory-stock-alert-collapsible > summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  width:100%;
+  box-sizing:border-box;
+}
+details.inventory-stock-alert-collapsible > summary::-webkit-details-marker{
+  display:none;
+}
+details.inventory-stock-alert-collapsible .inventory-low-stock-grid,
+details.inventory-stock-alert-collapsible .inventory-out-of-stock-grid{
+  margin-top:12px;
+}
+
+/* Kho hàng — tiêu đề + chip lọc gọn */
+.inventory-list-toolbar{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px 12px;
+  margin-bottom:12px;
+}
+.inventory-list-title{
+  margin:0;
+  font-size:15px;
+  font-weight:600;
+  line-height:1.3;
+  color:var(--text-primary);
+  flex:1 1 auto;
+  min-width:0;
+}
+.inventory-filter-chips{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  flex:1 1 auto;
+}
+.inventory-list-toolbar .inventory-filter-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:11px;
+  line-height:1.35;
+  cursor:pointer;
+  transition:background .15s ease, opacity .15s ease;
+  white-space:nowrap;
+  color:#374151;
+  box-sizing:border-box;
+}
+.inventory-filter-dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+.inventory-filter-dot--red{background:#ef4444;}
+.inventory-filter-dot--amber{background:#f59e0b;}
+.inventory-filter-dot--green{background:#10b981;}
+
+.inventory-list-toolbar .inventory-filter-chip[data-filter="all"]{background:#f3f4f6;}
+.inventory-list-toolbar .inventory-filter-chip[data-filter="all"].inventory-filter-chip--on{
+  background:#e5e7eb !important;
+  font-weight:600;
+}
+.inventory-list-toolbar .inventory-filter-chip[data-filter="low"],
+.inventory-list-toolbar .inventory-filter-chip[data-filter="warning"],
+.inventory-list-toolbar .inventory-filter-chip[data-filter="good"]{
+  background:transparent;
+}
+.inventory-list-toolbar .inventory-filter-chip[data-filter="low"].inventory-filter-chip--on{
+  background:#fecaca !important;
+  font-weight:600;
+}
+.inventory-list-toolbar .inventory-filter-chip[data-filter="warning"].inventory-filter-chip--on{
+  background:#fed7aa !important;
+  font-weight:600;
+}
+.inventory-list-toolbar .inventory-filter-chip[data-filter="good"].inventory-filter-chip--on{
+  background:#a7f3d0 !important;
+  font-weight:600;
+}
+
+/* Kho hàng: chỉ điện thoại (≤767px) — danh sách compact; từ 768px (tablet ngang/doc) giữ lưới */
+.inventory-products-panel .inventory-mobile-list{
+  display:none !important;
+}
+.inventory-products-panel .inventory-desktop-only{
+  display:block !important;
+}
+@media (max-width:767px){
+  .inventory-list-toolbar{
+    flex-direction:column;
+    align-items:stretch;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .inventory-list-title{
+    font-size:14px;
+  }
+  .inventory-filter-chips{
+    justify-content:flex-start;
+  }
+  .inventory-products-panel .inventory-mobile-list{
+    display:block !important;
+  }
+  .inventory-products-panel .inventory-desktop-only{
+    display:none !important;
+  }
+  .inventory-mobile-item.products-mobile-item{
+    -webkit-tap-highlight-color:rgba(5,150,105,0.12);
   }
 }
 
