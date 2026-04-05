@@ -1822,7 +1822,13 @@ class HamobileBanhang {
                     </div>
                 </div>
                 </div>
-                <aside class="dashboard-sidebar dashboard-sidebar--fixed" aria-label="Hoạt động gần đây">
+                <aside class="dashboard-sidebar dashboard-sidebar--fixed" aria-label="Sidebar Tổng quan">
+                <div class="dashboard-sidebar-panel dashboard-sidebar-panel--tax" role="region" aria-label="Khai thuế và kế toán">
+                    <div class="dashboard-sidebar-tax-row">
+                        <a href="https://etaxvn.gdt.gov.vn/" target="_blank" rel="noopener noreferrer" class="dashboard-tax-btn">KHAI THUẾ</a>
+                        <a href="https://www.gdt.gov.vn/" target="_blank" rel="noopener noreferrer" class="dashboard-tax-btn dashboard-tax-btn--secondary">KẾ TOÁN</a>
+                    </div>
+                </div>
                 <div class="dashboard-sidebar-scroll">
                 <div class="recent-activity">
                     <h2 class="section-title">Hoạt động gần đây 

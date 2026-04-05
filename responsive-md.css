@@ -2434,8 +2434,17 @@ select.edit-order-inp{
   --dashboard-sidebar-gap:20px;
   /* Fallback trước khi JS đo getBoundingClientRect(#main-content); phải ≥ chrome thực tế */
   --dashboard-sidebar-top:148px;
+  /* Khoảng từ main-nav tới nội dung + khoảng giữa 2 khối (thống kê / thao tác nhanh) — rộng hơn .content mặc định */
+  --dashboard-pad-top:36px;
   overflow-x:hidden;
   overflow-y:visible;
+  padding-top:var(--dashboard-pad-top);
+}
+
+@media (max-width:1024px){
+  #main-content.page-dashboard{
+    --dashboard-pad-top:32px;
+  }
 }
 
 /* fade-in trên #main-content dùng transform → phá position:fixed; chỉ fade opacity */
@@ -2460,6 +2469,26 @@ select.edit-order-inp{
   width:100%;
 }
 
+#main-content.page-dashboard .dashboard-main{
+  display:flex;
+  flex-direction:column;
+  gap:var(--dashboard-pad-top);
+}
+
+#main-content.page-dashboard .stats-grid{
+  margin-bottom:0;
+  gap:clamp(16px,2.2vw,24px);
+}
+
+#main-content.page-dashboard .quick-actions{
+  margin-top:0;
+  padding:clamp(22px,2.5vw,28px);
+}
+
+#main-content.page-dashboard .action-grid{
+  gap:clamp(14px,2vw,22px);
+}
+
 /* Giữ vị trí như .content ban đầu: khối chính max 1280px, căn giữa trong vùng còn lại (không dồn sát trái) */
 #main-content.page-dashboard .dashboard-layout{
   display:block;
@@ -2479,25 +2508,28 @@ select.edit-order-inp{
     box-sizing:border-box;
   }
 
-  /* Một cột nền phẳng (không panel nổi); thanh cuộn sát mép phải viewport */
+  /* Nền trong suốt: hai khối con là thẻ bo tròn giống .quick-actions / .stat-card */
   #main-content.page-dashboard .dashboard-sidebar--fixed{
     position:fixed;
-    top:var(--dashboard-sidebar-top);
+    top:calc(var(--dashboard-sidebar-top) + var(--dashboard-pad-top));
     right:0;
     width:var(--dashboard-sidebar-w);
-    height:calc(100vh - var(--dashboard-sidebar-top));
-    height:calc(100dvh - var(--dashboard-sidebar-top));
-    max-height:calc(100vh - var(--dashboard-sidebar-top));
+    height:calc(100vh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
+    height:calc(100dvh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
+    max-height:calc(100vh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
     z-index:25;
     display:flex;
     flex-direction:column;
-    padding:0;
+    gap:var(--dashboard-pad-top);
+    padding:0 0 0 8px;
+    padding-right:max(8px,env(safe-area-inset-right,0px));
     box-sizing:border-box;
-    background:#fff;
-    border-left:1px solid rgba(5,150,105,.22);
+    background:transparent;
+    border:none;
     box-shadow:none;
   }
 
+  /* Chỉ cuộn Hoạt động gần đây; panel thuế cố định phía trên */
   #main-content.page-dashboard .dashboard-sidebar-scroll{
     flex:1 1 auto;
     min-height:0;
@@ -2505,10 +2537,13 @@ select.edit-order-inp{
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
-    padding:14px 0 14px 14px;
-    padding-right:max(10px,env(safe-area-inset-right,0px));
-    padding-bottom:max(14px,env(safe-area-inset-bottom,0px));
+    padding:clamp(16px,2.5vw,22px);
+    padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
     box-sizing:border-box;
+  }
+
+  #main-content.page-dashboard .dashboard-sidebar-panel--tax{
+    padding:clamp(16px,2.5vw,22px);
   }
 
   #main-content.page-dashboard .dashboard-sidebar--fixed .recent-activity{
@@ -2525,22 +2560,90 @@ select.edit-order-inp{
     max-height:none;
     z-index:auto;
     padding:0;
-    border-left:none;
+    border:none;
     box-shadow:none;
-    background:#fff;
-    border:1px solid #e5e7eb;
-    border-radius:10px;
+    background:transparent;
+    border-radius:0;
     box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    gap:var(--dashboard-pad-top);
   }
 
   #main-content.page-dashboard .dashboard-sidebar-scroll{
     overflow:visible;
     max-height:none;
-    padding:14px 16px;
+    padding:clamp(16px,2.5vw,22px) 16px;
+    padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
+  }
+
+  #main-content.page-dashboard .dashboard-sidebar-panel--tax{
+    padding:clamp(16px,2.5vw,22px) 16px;
   }
 }
 
-/* Hoạt động gần đây: nằm trong layout sidebar, không còn thẻ trắng nổi (bóng/viền card) */
+/* Hai thẻ sidebar: cùng ngôn ngữ với .stat-card / .quick-actions (bo 12px, bóng, viền nhẹ) */
+#main-content.page-dashboard .dashboard-sidebar-panel--tax{
+  flex-shrink:0;
+  width:100%;
+  box-sizing:border-box;
+  background:#fff;
+  border-radius:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+  border:1px solid rgba(255,255,255,.2);
+}
+
+#main-content.page-dashboard .dashboard-sidebar-scroll{
+  background:#fff;
+  border-radius:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+  border:1px solid rgba(255,255,255,.2);
+  box-sizing:border-box;
+}
+
+#main-content.page-dashboard .dashboard-sidebar-tax-row{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin:0;
+  padding:0;
+  flex-shrink:0;
+}
+
+#main-content.page-dashboard .dashboard-tax-btn{
+  display:block;
+  width:100%;
+  text-align:center;
+  padding:10px 12px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:0.04em;
+  color:#fff;
+  text-decoration:none;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.35);
+  background:linear-gradient(135deg,#047857 0%,#059669 100%);
+  box-shadow:0 2px 8px rgba(5,150,105,.22);
+  box-sizing:border-box;
+  transition:opacity .15s,transform .15s;
+}
+
+#main-content.page-dashboard .dashboard-tax-btn:hover{
+  opacity:.94;
+  transform:translateY(-1px);
+}
+
+#main-content.page-dashboard .dashboard-tax-btn--secondary{
+  background:linear-gradient(135deg,#065f46 0%,#047857 100%);
+  border-color:rgba(255,255,255,.25);
+}
+
+#main-content.page-dashboard .dashboard-tax-btn:focus-visible{
+  outline:2px solid #10b981;
+  outline-offset:2px;
+}
+
+/* Nội dung bên trong thẻ .dashboard-sidebar-scroll (vỏ card đã bo tròn) */
 #main-content.page-dashboard .dashboard-sidebar .recent-activity{
   padding:0;
   margin:0;
@@ -2551,13 +2654,14 @@ select.edit-order-inp{
 }
 
 #main-content.page-dashboard .dashboard-sidebar .recent-activity .section-title{
-  font-size:14px;
+  font-size:18px;
   font-weight:700;
   line-height:1.35;
-  margin:0 0 10px;
-  padding-bottom:10px;
-  border-bottom:1px solid #e5e7eb;
+  margin:0 0 16px;
+  padding-bottom:0;
+  border-bottom:none;
   letter-spacing:-0.01em;
+  color:var(--text-primary);
 }
 
 #main-content.page-dashboard .dashboard-sidebar .recent-activity .dashboard-vn-clock{
