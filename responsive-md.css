@@ -2428,10 +2428,12 @@ select.edit-order-inp{
   }
 }
 
-/* --- Trang Tổng quan: main trong .content; sidebar fixed viewport (không chịu max-width 1280px) --- */
+/* --- Trang Tổng quan: desktop = main + sidebar một hàng, gap nhỏ, cụm fit-content căn giữa màn hình --- */
 #main-content.page-dashboard{
   --dashboard-sidebar-w:300px;
   --dashboard-sidebar-gap:20px;
+  /* Khoảng ngang giữa .dashboard-main và sidebar (sát nhau hơn 20px cũ) */
+  --dashboard-cluster-gap:12px;
   /* Fallback trước khi JS đo getBoundingClientRect(#main-content); phải ≥ chrome thực tế */
   --dashboard-sidebar-top:148px;
   /* Khoảng từ main-nav tới nội dung + khoảng giữa 2 khối (thống kê / thao tác nhanh) — rộng hơn .content mặc định */
@@ -2617,21 +2619,26 @@ select.edit-order-inp{
 
 @media (max-width:640px){
   #main-content.page-dashboard .dashboard-trend-header{
-    padding:22px 18px 20px;
+    margin-bottom:18px;
+    padding:16px 14px 16px;
     text-align:center;
   }
 
   #main-content.page-dashboard .dashboard-trend-header-row{
     flex-direction:column;
     align-items:stretch;
+    justify-content:flex-start;
+    gap:12px;
   }
 
   #main-content.page-dashboard .dashboard-trend-header-row > div:first-child{
     text-align:center;
+    flex:0 1 auto;
   }
 
   #main-content.page-dashboard .dashboard-trend-subtitle{
     display:inline-block;
+    margin:8px 0 0;
     margin-left:auto;
     margin-right:auto;
   }
@@ -2639,6 +2646,8 @@ select.edit-order-inp{
   #main-content.page-dashboard .dashboard-trend-period-wrap{
     justify-content:space-between;
     width:100%;
+    margin-top:0;
+    padding:10px 12px;
   }
 
   #main-content.page-dashboard .dashboard-trend-period-select{
@@ -2925,25 +2934,59 @@ select.edit-order-inp{
     width:100%;
     margin-left:0;
     margin-right:0;
-    padding-right:calc(var(--dashboard-sidebar-w) + var(--dashboard-sidebar-gap));
+    padding-right:0;
     box-sizing:border-box;
   }
 
-  /* Nền trong suốt: hai khối con là thẻ bo tròn giống .quick-actions / .stat-card */
+  /* Một hàng: main | sidebar; width = đúng 2 khối + gap → margin auto căn giữa viewport */
+  #main-content.page-dashboard .dashboard-page-root{
+    flex-direction:row;
+    align-items:flex-start;
+    justify-content:flex-start;
+    gap:var(--dashboard-cluster-gap);
+    width:fit-content;
+    max-width:100%;
+    margin-left:auto;
+    margin-right:auto;
+    padding-left:16px;
+    padding-right:16px;
+    box-sizing:border-box;
+  }
+
+  #main-content.page-dashboard .dashboard-main-column{
+    flex:0 1 1280px;
+    min-width:0;
+    width:min(
+      1280px,
+      calc(100vw - var(--dashboard-sidebar-w) - var(--dashboard-cluster-gap) - 32px)
+    );
+    max-width:1280px;
+  }
+
+  #main-content.page-dashboard .dashboard-layout{
+    margin-left:0;
+    margin-right:0;
+    width:100%;
+    max-width:100%;
+  }
+
+  /* Sticky: không set top theo viewport — tránh đẩy khối xuống (sidebar đã nằm trong #main-content có padding-top) */
   #main-content.page-dashboard .dashboard-sidebar--fixed{
-    position:fixed;
-    top:calc(var(--dashboard-sidebar-top) + var(--dashboard-pad-top));
-    right:0;
+    position:sticky;
+    top:0;
+    align-self:flex-start;
+    flex:0 0 var(--dashboard-sidebar-w);
     width:var(--dashboard-sidebar-w);
-    height:calc(100vh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
-    height:calc(100dvh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
+    min-width:var(--dashboard-sidebar-w);
+    height:auto;
     max-height:calc(100vh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
+    max-height:calc(100dvh - var(--dashboard-sidebar-top) - var(--dashboard-pad-top));
     z-index:25;
     display:flex;
     flex-direction:column;
     gap:var(--dashboard-pad-top);
-    padding:0 0 0 8px;
-    padding-right:max(8px,env(safe-area-inset-right,0px));
+    padding:0;
+    padding-right:max(0px,env(safe-area-inset-right,0px));
     box-sizing:border-box;
     background:transparent;
     border:none;
