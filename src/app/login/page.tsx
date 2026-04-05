@@ -87,7 +87,9 @@ function LoginContent() {
   const [resetSending, setResetSending] = useState(false);
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetError, setResetError] = useState("");
-  /** Mặc định false: không kẹt spinner khi chưa có phiên hoặc listener chậm; bật true khi bắt đầu restore. */
+  /** true đến khi authStateReady xong — tránh “flash” form đăng nhập trước khi biết có phiên hay không. */
+  const [sessionProbePending, setSessionProbePending] = useState(true);
+  /** Bật khi đang restore phiên (cookie + redirect); tắt khi xong hoặc không có user. */
   const [authBootstrapping, setAuthBootstrapping] = useState(false);
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
@@ -122,6 +124,8 @@ function LoginContent() {
       if (sessionRestoreLockRef.current) return;
       sessionRestoreLockRef.current = true;
       setAuthBootstrapping(true);
+      /** Đã bắt đầu chuyển trang — không tắt spinner trong finally (tránh flash form trước khi Next kịp điều hướng). */
+      let navigatedAway = false;
       const safetyId = window.setTimeout(() => {
         sessionRestoreLockRef.current = false;
         setAuthBootstrapping(false);
@@ -179,19 +183,24 @@ function LoginContent() {
           return;
         }
         if (nextPath?.startsWith("/admin")) {
+          navigatedAway = true;
           window.location.assign(nextPath);
           return;
         }
         if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
+          navigatedAway = true;
           router.replace(toPaymentRequiredPath(profile.shopSlug));
           return;
         }
         if (nextPath) {
+          navigatedAway = true;
           router.replace(nextPath);
           return;
         }
+        navigatedAway = true;
         if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
         else router.replace("/account");
+        return;
       } catch (e) {
         if (e instanceof Error && e.message === "profile-timeout") {
           setError("Hết thời gian tải hồ sơ. Kiểm tra NEXT_PUBLIC_SUPABASE_URL / mạng rồi tải lại trang.");
@@ -199,7 +208,9 @@ function LoginContent() {
       } finally {
         window.clearTimeout(safetyId);
         sessionRestoreLockRef.current = false;
-        window.setTimeout(() => setAuthBootstrapping(false), 250);
+        if (!navigatedAway) {
+          window.setTimeout(() => setAuthBootstrapping(false), 250);
+        }
       }
     },
     [router],
@@ -218,6 +229,7 @@ function LoginContent() {
       } finally {
         if (!active) return;
         const u = getAuthClient().getCurrentUser();
+        setSessionProbePending(false);
         if (!u) setAuthBootstrapping(false);
         else void restoreLoggedInSession(u);
       }
@@ -413,87 +425,90 @@ function LoginContent() {
           gap: 14,
         }}
       >
-      <div style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "grid", gap: 6, justifyItems: "center", textAlign: "center" }}>
-          <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>
-            {forgotPasswordMode ? "Đặt lại mật khẩu" : "Đăng nhập"}
-          </h1>
-        </div>
-        <p style={{ margin: 0, color: "#4b5563", fontSize: 14, textAlign: "center" }}>
-          {forgotPasswordMode
-            ? "Nhập email đã đăng ký. Chúng tôi gửi link đặt lại mật khẩu qua email."
-            : "Đăng nhập để vào hệ thống bán hàng."}
-        </p>
-
-        {notice ? (
+      {authBootstrapping || sessionProbePending ? (
+        <div
+          style={{
+            display: "grid",
+            gap: 14,
+            justifyItems: "center",
+            textAlign: "center",
+            padding: "36px 16px",
+            minHeight: 120,
+          }}
+        >
           <div
             style={{
-              background: isPasswordChangedNotice
-                ? "linear-gradient(180deg, rgba(236,253,245,0.98) 0%, rgba(209,250,229,0.95) 100%)"
-                : "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(219,234,254,0.95) 100%)",
-              border: isPasswordChangedNotice ? "1px solid #6ee7b7" : "1px solid #93c5fd",
-              color: isPasswordChangedNotice ? "#166534" : "#1d4ed8",
-              borderRadius: 12,
-              padding: "11px 12px",
-              fontSize: 13,
-              lineHeight: 1.45,
-              boxShadow: isPasswordChangedNotice
-                ? "0 8px 18px rgba(5,150,105,0.14)"
-                : "0 8px 18px rgba(37,99,235,0.12)",
-            }}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 4 }}>
-              {isPasswordChangedNotice ? "Đổi mật khẩu thành công" : "Thông báo hệ thống"}
-            </div>
-            <div style={{ whiteSpace: "pre-line" }}>{notice}</div>
-          </div>
-        ) : null}
-
-        <label style={{ display: "grid", gap: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Email</span>
-          <input
-            type="text"
-            inputMode="email"
-            autoComplete="email"
-            required={!forgotPasswordMode}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              border: "1px solid #a7f3d0",
-              borderRadius: 10,
-              padding: "11px 12px",
-              fontSize: 14,
-              outline: "none",
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: "3px solid #bbf7d0",
+              borderTopColor: "#059669",
+              animation: "login-spin 0.9s linear infinite",
             }}
           />
-        </label>
-
-        {authBootstrapping ? (
-          <div
-            style={{
-              display: "grid",
-              gap: 10,
-              justifyItems: "center",
-              textAlign: "center",
-              padding: "8px 0",
-            }}
-          >
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                border: "3px solid #bbf7d0",
-                borderTopColor: "#059669",
-                animation: "spin 0.9s linear infinite",
-              }}
-            />
-            <div style={{ color: "#065f46", fontSize: 14, fontWeight: 600 }}>
-              Đang khôi phục phiên đăng nhập…
-            </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <div style={{ color: "#065f46", fontSize: 15, fontWeight: 600, lineHeight: 1.45 }}>
+            Đang khôi phục phiên đăng nhập…
           </div>
-        ) : forgotPasswordMode ? (
+          <style>{`@keyframes login-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "grid", gap: 6, justifyItems: "center", textAlign: "center" }}>
+              <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>
+                {forgotPasswordMode ? "Đặt lại mật khẩu" : "Đăng nhập"}
+              </h1>
+            </div>
+            <p style={{ margin: 0, color: "#4b5563", fontSize: 14, textAlign: "center" }}>
+              {forgotPasswordMode
+                ? "Nhập email đã đăng ký. Chúng tôi gửi link đặt lại mật khẩu qua email."
+                : "Đăng nhập để vào hệ thống bán hàng."}
+            </p>
+
+            {notice ? (
+              <div
+                style={{
+                  background: isPasswordChangedNotice
+                    ? "linear-gradient(180deg, rgba(236,253,245,0.98) 0%, rgba(209,250,229,0.95) 100%)"
+                    : "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(219,234,254,0.95) 100%)",
+                  border: isPasswordChangedNotice ? "1px solid #6ee7b7" : "1px solid #93c5fd",
+                  color: isPasswordChangedNotice ? "#166534" : "#1d4ed8",
+                  borderRadius: 12,
+                  padding: "11px 12px",
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  boxShadow: isPasswordChangedNotice
+                    ? "0 8px 18px rgba(5,150,105,0.14)"
+                    : "0 8px 18px rgba(37,99,235,0.12)",
+                }}
+              >
+                <div style={{ fontWeight: 800, marginBottom: 4 }}>
+                  {isPasswordChangedNotice ? "Đổi mật khẩu thành công" : "Thông báo hệ thống"}
+                </div>
+                <div style={{ whiteSpace: "pre-line" }}>{notice}</div>
+              </div>
+            ) : null}
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Email</span>
+              <input
+                type="text"
+                inputMode="email"
+                autoComplete="email"
+                required={!forgotPasswordMode}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{
+                  border: "1px solid #a7f3d0",
+                  borderRadius: 10,
+                  padding: "11px 12px",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </label>
+
+            {forgotPasswordMode ? (
           <>
             {resetError ? (
               <div
@@ -649,38 +664,40 @@ function LoginContent() {
               Quên mật khẩu?
             </button>
           </form>
-        )}
-      </div>
+            )}
+          </div>
 
-        <div style={{ textAlign: "center", fontSize: 14, color: "#4b5563", display: "grid", gap: 10 }}>
-          <div>
-            Chưa có tài khoản?{" "}
-            <Link
-              href="/register"
-              style={{
-                color: "#065f46",
-                fontWeight: 800,
-                textDecoration: "none",
-                background: "#ecfdf5",
-                border: "1px solid #a7f3d0",
-                borderRadius: 999,
-                padding: "4px 10px",
-                display: "inline-block",
-              }}
-            >
-              Đăng ký
-            </Link>
+          <div style={{ textAlign: "center", fontSize: 14, color: "#4b5563", display: "grid", gap: 10 }}>
+            <div>
+              Chưa có tài khoản?{" "}
+              <Link
+                href="/register"
+                style={{
+                  color: "#065f46",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  background: "#ecfdf5",
+                  border: "1px solid #a7f3d0",
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  display: "inline-block",
+                }}
+              >
+                Đăng ký
+              </Link>
+            </div>
+            <div>
+              <Link href="/" style={{ color: "#6b7280", fontSize: 13 }}>
+                ← Trang chủ
+              </Link>
+              {" · "}
+              <Link href="/trial" style={{ color: "#6b7280", fontSize: 13 }}>
+                Dùng thử
+              </Link>
+            </div>
           </div>
-          <div>
-            <Link href="/" style={{ color: "#6b7280", fontSize: 13 }}>
-              ← Trang chủ
-            </Link>
-            {" · "}
-            <Link href="/trial" style={{ color: "#6b7280", fontSize: 13 }}>
-              Dùng thử
-            </Link>
-          </div>
-        </div>
+        </>
+      )}
       </div>
     </main>
   );
