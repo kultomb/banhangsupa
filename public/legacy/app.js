@@ -103,7 +103,13 @@ function haMergedBusinessFromBackupLayers(layers) {
         for (var key in L) {
             if (!Object.prototype.hasOwnProperty.call(L, key)) continue;
             if (key === 'company' || key === 'meta' || key === 'data') continue;
-            merged[key] = L[key];
+            var val = L[key];
+            if (HA_POS_ARRAY_KEYS.indexOf(key) >= 0) {
+                var nextA = haAsPosArray(val);
+                var prevA = haAsPosArray(merged[key]);
+                if (nextA.length === 0 && prevA.length > 0) continue;
+            }
+            merged[key] = val;
         }
     }
     return merged;
@@ -691,6 +697,7 @@ class HamobileBanhang {
         this.debtsMobileSortDesc = true;
         this.repairsSearchQuery = '';
         this.repairsFilterPeriod = 'all';
+        this._dashboardTrendPeriod = 'this_month';
         this.productsCategoryFilter = '';
         this.productsPage = 1;
         this.productsPerPage = 50;
@@ -1493,6 +1500,215 @@ class HamobileBanhang {
         const inst = new Date(`${d}T${hh}:${mm}:00+07:00`);
         return isNaN(inst.getTime()) ? null : inst;
     }
+
+    /** Thứ trong tuần (VN), Thứ Hai = 0 … Chủ nhật = 6 (isoYmd = YYYY-MM-DD). */
+    getVietnamWeekdayMon0FromKey(isoYmd) {
+        const inst = new Date(`${isoYmd}T12:00:00+07:00`);
+        if (isNaN(inst.getTime())) return 0;
+        const utcDow = inst.getUTCDay();
+        return (utcDow + 6) % 7;
+    }
+
+    parseVietnamYmd(isoYmd) {
+        const p = String(isoYmd || '').split('-').map(Number);
+        return { y: p[0] || 1970, m: p[1] || 1, d: p[2] || 1 };
+    }
+
+    vietnamYmdFromParts(y, m, d) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    lastDayOfVietnamMonth(y, month1to12) {
+        return new Date(y, month1to12, 0).getDate();
+    }
+
+    /**
+     * Khoảng ngày (YYYY-MM-DD) theo lịch VN. periodKey: today | yesterday | this_week | last_week |
+     * this_month | last_month | this_quarter | last_quarter | this_year | last_year
+     */
+    getTrendAnalysisPeriodRange(periodKey) {
+        const today = this.getVietnamDateKey();
+        const { y, m, d } = this.parseVietnamYmd(today);
+        const pad = (n) => String(n).padStart(2, '0');
+
+        switch (periodKey) {
+            case 'today':
+                return { from: today, to: today, label: 'Hôm nay' };
+            case 'yesterday': {
+                const yd = this.addDaysToVietnamDateKey(today, -1);
+                return { from: yd, to: yd, label: 'Hôm qua' };
+            }
+            case 'this_week': {
+                const mon0 = this.getVietnamWeekdayMon0FromKey(today);
+                const from = this.addDaysToVietnamDateKey(today, -mon0);
+                return { from, to: today, label: 'Tuần này (từ Thứ Hai)' };
+            }
+            case 'last_week': {
+                const mon0 = this.getVietnamWeekdayMon0FromKey(today);
+                const thisMonday = this.addDaysToVietnamDateKey(today, -mon0);
+                const from = this.addDaysToVietnamDateKey(thisMonday, -7);
+                const to = this.addDaysToVietnamDateKey(from, 6);
+                return { from, to, label: 'Tuần trước' };
+            }
+            case 'this_month': {
+                const from = `${y}-${pad(m)}-01`;
+                return { from, to: today, label: 'Tháng này' };
+            }
+            case 'last_month': {
+                const lm = m === 1 ? 12 : m - 1;
+                const ly = m === 1 ? y - 1 : y;
+                const from = `${ly}-${pad(lm)}-01`;
+                const lastD = this.lastDayOfVietnamMonth(ly, lm);
+                const to = this.vietnamYmdFromParts(ly, lm, lastD);
+                return { from, to, label: 'Tháng trước' };
+            }
+            case 'this_quarter': {
+                const q = Math.floor((m - 1) / 3) + 1;
+                const sm = (q - 1) * 3 + 1;
+                const from = `${y}-${pad(sm)}-01`;
+                const em = sm + 2;
+                const lastD = this.lastDayOfVietnamMonth(y, em);
+                const endQ = this.vietnamYmdFromParts(y, em, lastD);
+                const to = endQ < today ? endQ : today;
+                return { from, to, label: `Quý ${q}/${y}` };
+            }
+            case 'last_quarter': {
+                let q = Math.floor((m - 1) / 3) + 1;
+                let yr = y;
+                if (q <= 1) {
+                    q = 4;
+                    yr = y - 1;
+                } else {
+                    q -= 1;
+                }
+                const sm = (q - 1) * 3 + 1;
+                const em = sm + 2;
+                const from = `${yr}-${pad(sm)}-01`;
+                const to = this.vietnamYmdFromParts(yr, em, this.lastDayOfVietnamMonth(yr, em));
+                return { from, to, label: `Quý ${q}/${yr}` };
+            }
+            case 'this_year': {
+                const from = `${y}-01-01`;
+                return { from, to: today, label: 'Năm nay' };
+            }
+            case 'last_year': {
+                const ly = y - 1;
+                return {
+                    from: `${ly}-01-01`,
+                    to: `${ly}-12-31`,
+                    label: 'Năm trước'
+                };
+            }
+            default: {
+                const from = `${y}-${pad(m)}-01`;
+                return { from, to: today, label: 'Tháng này' };
+            }
+        }
+    }
+
+    /** Chuẩn về YYYY-MM-DD: ISO có giờ, yyyy/mm/dd, hoặc dd/mm/yyyy (VN). */
+    normalizeRecordDateToYmd(dateStr) {
+        const raw = String(dateStr || '').trim();
+        if (!raw) return null;
+        const head = raw.split('T')[0].split(/\s+/)[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+        if (/^\d{4}\/\d{2}\/\d{2}$/.test(head)) {
+            const [y, mo, d] = head.split('/');
+            return `${y}-${mo}-${d}`;
+        }
+        const slash = head.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (slash) {
+            const d = parseInt(slash[1], 10);
+            const mo = parseInt(slash[2], 10);
+            const y = parseInt(slash[3], 10);
+            if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 1970 && y <= 2100) {
+                return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+        }
+        return null;
+    }
+
+    orderDateInRange(order, fromKey, toKey) {
+        const dt = this.normalizeRecordDateToYmd(order && order.date);
+        if (!dt) return false;
+        return dt >= fromKey && dt <= toKey;
+    }
+
+    repairDateInRange(repair, fromKey, toKey) {
+        const dt = this.normalizeRecordDateToYmd(repair && repair.date);
+        if (!dt) return false;
+        return dt >= fromKey && dt <= toKey;
+    }
+
+    formatTrendChartTip(revenue) {
+        const r = Number(revenue) || 0;
+        if (r >= 1e9) return `${(r / 1e9).toFixed(1)}B`;
+        if (r >= 1e6) return `${(r / 1e6).toFixed(1)}M`;
+        if (r >= 1e3) return `${(r / 1e3).toFixed(0)}k`;
+        return String(Math.round(r));
+    }
+
+    formatTrendBarLabel(isoYmd) {
+        const { d, m } = this.parseVietnamYmd(isoYmd);
+        return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+    }
+
+    /** Gộp doanh thu đơn (đã chốt) + sửa chữa (Đã trả) theo ngày trong kỳ, tối đa maxBars cột. */
+    buildTrendRevenueBuckets(fromKey, toKey, allOrders, allRepairs, maxBars = 12) {
+        const days = [];
+        let k = fromKey;
+        let guard = 0;
+        while (k <= toKey && guard++ < 800) {
+            days.push(k);
+            k = this.addDaysToVietnamDateKey(k, 1);
+        }
+        const n = days.length;
+        if (n === 0) return [];
+
+        const dayRevenue = (day) => {
+            let rev = 0;
+            (allOrders || []).forEach((o) => {
+                if (!this.orderDateInRange(o, day, day)) return;
+                rev += this.getOrderRecordedNetRevenue(o);
+            });
+            (allRepairs || []).forEach((r) => {
+                if (!this.repairDateInRange(r, day, day)) return;
+                if ((r.status || '') !== 'Đã trả') return;
+                rev += Number(r.repairCost) || 0;
+            });
+            return rev;
+        };
+
+        const bucketSize = Math.max(1, Math.ceil(n / maxBars));
+        const buckets = [];
+        for (let i = 0; i < n; i += bucketSize) {
+            const chunk = days.slice(i, i + bucketSize);
+            const f = chunk[0];
+            const t = chunk[chunk.length - 1];
+            let revenue = 0;
+            chunk.forEach((day) => {
+                revenue += dayRevenue(day);
+            });
+            const label =
+                f === t
+                    ? this.formatTrendBarLabel(f)
+                    : `${this.formatTrendBarLabel(f)}–${this.formatTrendBarLabel(t)}`;
+            buckets.push({ label, revenue });
+        }
+        return buckets;
+    }
+
+    getDashboardTrendPeriodKey() {
+        return this._dashboardTrendPeriod || 'this_month';
+    }
+
+    setDashboardTrendPeriod(key) {
+        this._dashboardTrendPeriod = key;
+        const el = document.getElementById('dashboard-trend-analysis');
+        const mc = document.getElementById('main-content');
+        if (!el || !mc || !mc.classList.contains('page-dashboard')) return;
+        el.outerHTML = this.getTrendAnalysisSectionHtml();
+    }
     
     // Tính toán khoảng thời gian từ thời điểm hiện tại
     getTimeAgo(pastTime) {
@@ -1863,8 +2079,8 @@ class HamobileBanhang {
         const todayRepairs = repairs.filter(r => r && r.date === todayStr);
         const yesterdayRepairs = repairs.filter(r => r && r.date === yesterdayStr);
         const calcRepairRevenue = (r) => (r.status || '') === 'Đã trả' ? (Number(r.repairCost) || 0) : 0;
-        const todayOrderRev = todayOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (Number(o.total) || 0) : 0), 0);
-        const yesterdayOrderRev = yesterdayOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (Number(o.total) || 0) : 0), 0);
+        const todayOrderRev = todayOrders.reduce((s, o) => s + this.getOrderRecordedNetRevenue(o), 0);
+        const yesterdayOrderRev = yesterdayOrders.reduce((s, o) => s + this.getOrderRecordedNetRevenue(o), 0);
         const todayRepairRev = todayRepairs.reduce((s, r) => s + calcRepairRevenue(r), 0);
         const yesterdayRepairRev = yesterdayRepairs.reduce((s, r) => s + calcRepairRevenue(r), 0);
         const todayRevenue = todayOrderRev + todayRepairRev;
@@ -1954,6 +2170,7 @@ class HamobileBanhang {
 
                     </div>
                 </div>
+                ${this.getTrendAnalysisSectionHtml()}
                     </div>
                 </div>
                 </div>
@@ -4672,8 +4889,8 @@ class HamobileBanhang {
     }
 
     matchesDateByPeriod(dateStr, period, customFrom, customTo) {
-        const d = String(dateStr || '').split('T')[0];
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+        const d = this.normalizeRecordDateToYmd(dateStr);
+        if (!d) return false;
         const p = period || 'all';
         if (p === 'all') return true;
         const vn = this.getVietnamTime();
@@ -6559,6 +6776,22 @@ class HamobileBanhang {
         return profit - orderDiscount;
     }
 
+    /**
+     * Doanh thu ghi nhận đơn (khớp dòng hàng + giảm giá như calcOrderProfit).
+     * Không có dòng hàng thì dùng order.total (đơn cũ / ghi tổng).
+     */
+    getOrderRecordedNetRevenue(order) {
+        if (!this.isOrderFinalizedForRevenue(order)) return 0;
+        const items = order.products || [];
+        if (!items.length) return Math.max(0, Number(order.total) || 0);
+        let sumNet = 0;
+        items.forEach((item) => {
+            sumNet += this.getOrderLineNetRevenueItem(item);
+        });
+        const orderDiscount = this.getEffectiveOrderLevelDiscount(order);
+        return Math.max(0, sumNet - orderDiscount);
+    }
+
     /** Doanh thu một dòng hàng sau giảm từng món, trước giảm cấp đơn (khớp calcOrderProfit). */
     getOrderLineNetRevenueItem(item) {
         const qty = Number(item.quantity) || 0;
@@ -6660,7 +6893,7 @@ class HamobileBanhang {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
         }, 0);
-        const totalRevenue = filteredOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (o.total || 0) : 0), 0) + repairRevenue;
+        const totalRevenue = filteredOrders.reduce((s, o) => s + this.getOrderRecordedNetRevenue(o), 0) + repairRevenue;
         const orderProfit = filteredOrders.reduce((s, o) => s + this.calcOrderProfit(o), 0);
         const repairProfit = filteredRepairs.reduce((s, r) => s + this.calcRepairProfit(r), 0);
         const totalProfit = orderProfit + repairProfit;
@@ -6860,7 +7093,7 @@ class HamobileBanhang {
                         <div class="action-button" onclick="app.showTrendAnalysis()">
                             <div class="action-icon">📈</div>
                             <div class="action-title">Phân tích xu hướng</div>
-                            <div class="action-desc">Dự báo và kế hoạch</div>
+                            <div class="action-desc">Xem trên trang Tổng quan</div>
                         </div>
                     </div>
                     
@@ -6964,6 +7197,271 @@ class HamobileBanhang {
                 <div class="activity-time">${this.getTimeAgo(activity.time)}</div>
             </div>
         `).join('');
+    }
+
+    /** Nội dung "Phân tích xu hướng" hiển thị trên Tổng quan (trước đây trong modal Báo cáo). */
+    getTrendAnalysisSectionHtml() {
+        const data = this.demoData || {};
+        const allOrders = data.orders || [];
+        const allRepairs = data.repairs || [];
+        const products = data.products || [];
+        const customers = data.customers || [];
+
+        const periodKey = this.getDashboardTrendPeriodKey();
+        const range = this.getTrendAnalysisPeriodRange(periodKey);
+        const periodSelectOptions = [
+            ['today', 'Hôm nay'],
+            ['yesterday', 'Hôm qua'],
+            ['this_week', 'Tuần này'],
+            ['last_week', 'Tuần trước'],
+            ['this_month', 'Tháng này'],
+            ['last_month', 'Tháng trước'],
+            ['this_quarter', 'Quý này'],
+            ['last_quarter', 'Quý trước'],
+            ['this_year', 'Năm nay'],
+            ['last_year', 'Năm trước']
+        ];
+        const periodSelectHtml = periodSelectOptions
+            .map(
+                ([val, lab]) =>
+                    `<option value="${val}"${val === periodKey ? ' selected' : ''}>${lab}</option>`
+            )
+            .join('');
+
+        const orders = allOrders.filter((o) => this.orderDateInRange(o, range.from, range.to));
+        const repairsInRange = allRepairs.filter((r) => this.repairDateInRange(r, range.from, range.to));
+
+        const orderRevenue = orders.reduce((sum, order) => sum + this.getOrderRecordedNetRevenue(order), 0);
+        const repairRevenue = repairsInRange.reduce((s, r) => {
+            if ((r.status || '') !== 'Đã trả') return s;
+            return s + (Number(r.repairCost) || 0);
+        }, 0);
+        const totalRevenue = orderRevenue + repairRevenue;
+
+        const orderProfitKpi = orders.reduce((s, o) => s + this.calcOrderProfit(o), 0);
+        const repairProfitKpi = repairsInRange.reduce((s, r) => s + this.calcRepairProfit(r), 0);
+        const totalProfitKpi = orderProfitKpi + repairProfitKpi;
+        const profitMarginKpi = totalRevenue > 0 ? ((totalProfitKpi / totalRevenue) * 100).toFixed(1) : '0';
+
+        const finalizedOrders = orders.filter((o) => this.isOrderFinalizedForRevenue(o));
+        const repairsReturned = repairsInRange.filter((r) => (r.status || '') === 'Đã trả');
+        const totalTransactions = finalizedOrders.length + repairsReturned.length;
+        const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+
+        const totalDebt = customers.reduce((sum, c) => sum + (Number(c.debt) || 0), 0);
+        const paidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Đã thanh toán').length;
+        const unpaidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Công nợ').length;
+        const completedOrders = finalizedOrders.filter((o) => o.status === 'Hoàn thành').length;
+        const orderCountSafe = Math.max(1, finalizedOrders.length);
+        const productCountSafe = Math.max(1, products.length);
+        const completedPct = finalizedOrders.length
+            ? ((completedOrders / finalizedOrders.length) * 100).toFixed(1)
+            : '0';
+
+        const custInPeriod = new Set();
+        finalizedOrders.forEach((o) => {
+            const id = o.customerId || o.customerName;
+            if (id) custInPeriod.add(String(id));
+        });
+        repairsInRange.forEach((r) => {
+            if (r.customerName) custInPeriod.add(String(r.customerName));
+        });
+        const customersInPeriod = custInPeriod.size;
+
+        const chartBuckets = this.buildTrendRevenueBuckets(
+            range.from,
+            range.to,
+            allOrders,
+            allRepairs,
+            12
+        );
+        const maxChartRev = Math.max(...chartBuckets.map((b) => b.revenue), 1);
+
+        const productSales = {};
+        finalizedOrders.forEach((order) => {
+            (order.products || []).forEach((product) => {
+                if (!product || !product.name) return;
+                if (!productSales[product.name]) productSales[product.name] = 0;
+                productSales[product.name] += product.quantity || 0;
+            });
+        });
+        const topProducts = Object.entries(productSales)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        const lowStockProducts = products.filter((p) => p && Number(p.stock) < 10);
+        const normalStockProducts = products.filter(
+            (p) => p && Number(p.stock) >= 10 && Number(p.stock) < 50
+        );
+        const highStockProducts = products.filter((p) => p && Number(p.stock) >= 50);
+
+        const paidArc = ((paidOrders / orderCountSafe) * 314).toFixed(1);
+        const unpaidArc = ((unpaidOrders / orderCountSafe) * 220).toFixed(1);
+
+        const chartBarsHtml =
+            chartBuckets.length > 0
+                ? chartBuckets
+                      .map((item, index) => {
+                          const height = (item.revenue / maxChartRev) * 160;
+                          const color =
+                              index === chartBuckets.length - 1 ? '#10b981' : '#6b7280';
+                          return `
+                                    <div class="dashboard-trend-bar-col">
+                                        <div class="dashboard-trend-bar" style="background:${color};height:${Math.max(4, height)}px;">
+                                            <span class="dashboard-trend-bar-tip">${this.formatTrendChartTip(item.revenue)}</span>
+                                        </div>
+                                        <div class="dashboard-trend-bar-label">${item.label}</div>
+                                    </div>`;
+                      })
+                      .join('')
+                : '<p class="dashboard-trend-empty">Chưa có doanh thu trong kỳ.</p>';
+
+        return `
+            <div class="dashboard-trend-section quick-actions" id="dashboard-trend-analysis" role="region" aria-label="Phân tích xu hướng kinh doanh">
+                <div class="dashboard-trend-header">
+                    <div class="dashboard-trend-header-row">
+                        <div>
+                            <h2 class="section-title dashboard-trend-title">📊 Báo cáo Phân tích Xu hướng Kinh doanh</h2>
+                            <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to} (giờ VN)</p>
+                        </div>
+                        <div class="dashboard-trend-period-wrap">
+                            <label class="dashboard-trend-period-label" for="dashboard-trend-period">Kỳ</label>
+                            <select id="dashboard-trend-period" class="dashboard-trend-period-select" onchange="app.setDashboardTrendPeriod(this.value)">${periodSelectHtml}</select>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-trend-kpi">
+                    <div class="dashboard-trend-kpi-card dashboard-trend-kpi-card--green">
+                        <div class="dashboard-trend-kpi-value">${totalRevenue.toLocaleString('vi-VN')}</div>
+                        <div class="dashboard-trend-kpi-label">Doanh thu kỳ (theo dòng hàng &amp; giảm giá)</div>
+                    </div>
+                    <div class="dashboard-trend-kpi-card dashboard-trend-kpi-card--blue">
+                        <div class="dashboard-trend-kpi-value">${totalProfitKpi.toLocaleString('vi-VN')}</div>
+                        <div class="dashboard-trend-kpi-label">Lợi nhuận gộp kỳ (đơn + SC đã trả)</div>
+                    </div>
+                    <div class="dashboard-trend-kpi-card dashboard-trend-kpi-card--amber">
+                        <div class="dashboard-trend-kpi-value">${finalizedOrders.length}</div>
+                        <div class="dashboard-trend-kpi-label">Đơn hàng (trong kỳ)</div>
+                    </div>
+                    <div class="dashboard-trend-kpi-card dashboard-trend-kpi-card--violet">
+                        <div class="dashboard-trend-kpi-value">${customersInPeriod}</div>
+                        <div class="dashboard-trend-kpi-label">KH có phát sinh (kỳ)</div>
+                    </div>
+                </div>
+                <div class="dashboard-trend-row dashboard-trend-row--2-1">
+                    <div class="dashboard-trend-panel">
+                        <h3 class="dashboard-trend-panel-title">📈 Doanh thu theo thời gian (chuẩn báo cáo)</h3>
+                        <div class="dashboard-trend-bar-chart">
+                            ${chartBarsHtml}
+                        </div>
+                    </div>
+                    <div class="dashboard-trend-panel">
+                        <h3 class="dashboard-trend-panel-title">💳 Thanh toán đơn (trong kỳ)</h3>
+                        <div class="dashboard-trend-donut-wrap">
+                            <div class="dashboard-trend-donut">
+                                <svg width="120" height="120" style="transform: rotate(-90deg);" aria-hidden="true">
+                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="12"></circle>
+                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="12"
+                                            stroke-dasharray="${paidArc} 314" stroke-linecap="round"></circle>
+                                    <circle cx="60" cy="60" r="35" fill="none" stroke="#f59e0b" stroke-width="8"
+                                            stroke-dasharray="${unpaidArc} 220" stroke-linecap="round"></circle>
+                                </svg>
+                                <div class="dashboard-trend-donut-center">
+                                    <div class="dashboard-trend-donut-num">${finalizedOrders.length}</div>
+                                    <div class="dashboard-trend-donut-cap">Đơn đã chốt</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="dashboard-trend-legend">
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--green"></span>Đã TT: ${paidOrders}</div>
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--amber"></span>Công nợ: ${unpaidOrders}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-trend-row dashboard-trend-row--1-1">
+                    <div class="dashboard-trend-panel">
+                        <h3 class="dashboard-trend-panel-title">🏆 Top 5 SP bán chạy (trong kỳ)</h3>
+                        <div class="dashboard-trend-top-products">
+                            ${
+                                topProducts.length
+                                    ? topProducts
+                                          .map((product, index) => {
+                                              const maxQuantity = topProducts[0][1] || 1;
+                                              const percentage = (product[1] / maxQuantity) * 100;
+                                              const colors = [
+                                                  '#10b981',
+                                                  '#3b82f6',
+                                                  '#f59e0b',
+                                                  '#8b5cf6',
+                                                  '#ef4444'
+                                              ];
+                                              return `
+                                    <div class="dashboard-trend-product-row">
+                                        <div class="dashboard-trend-product-meta">
+                                            <span>${escapeHtml(product[0])}</span>
+                                            <span>${product[1]}</span>
+                                        </div>
+                                        <div class="dashboard-trend-product-track">
+                                            <div class="dashboard-trend-product-fill" style="background:${colors[index]};width:${percentage}%;"></div>
+                                        </div>
+                                    </div>`;
+                                          })
+                                          .join('')
+                                    : '<p class="dashboard-trend-empty">Chưa có đơn chốt trong kỳ.</p>'
+                            }
+                        </div>
+                    </div>
+                    <div class="dashboard-trend-panel">
+                        <h3 class="dashboard-trend-panel-title">📦 Tồn kho hiện tại</h3>
+                        <div class="dashboard-trend-inventory-svg">
+                            <svg width="100" height="100" style="transform: rotate(-90deg);" aria-hidden="true">
+                                <circle cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="10"></circle>
+                                <circle cx="50" cy="50" r="40" fill="none" stroke="#dc2626" stroke-width="10"
+                                        stroke-dasharray="${((lowStockProducts.length / productCountSafe) * 251).toFixed(1)} 251"></circle>
+                                <circle cx="50" cy="50" r="30" fill="none" stroke="#f59e0b" stroke-width="8"
+                                        stroke-dasharray="${((normalStockProducts.length / productCountSafe) * 188).toFixed(1)} 188"></circle>
+                                <circle cx="50" cy="50" r="20" fill="none" stroke="#10b981" stroke-width="6"
+                                        stroke-dasharray="${((highStockProducts.length / productCountSafe) * 126).toFixed(1)} 126"></circle>
+                            </svg>
+                        </div>
+                        <div class="dashboard-trend-inventory-legend">
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--red"></span>Sắp hết: ${lowStockProducts.length}</div>
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--amber"></span>Bình thường: ${normalStockProducts.length}</div>
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--green"></span>Dồi dào: ${highStockProducts.length}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-trend-row dashboard-trend-row--3">
+                    <div class="dashboard-trend-summary dashboard-trend-summary--ok">
+                        <h4>✅ Trong kỳ</h4>
+                        <ul>
+                            <li>• ${customersInPeriod} khách có giao dịch</li>
+                            <li>• TB/giao dịch chốt: ${avgOrderValue.toLocaleString('vi-VN')} VNĐ</li>
+                            <li>• Biên LN gộp: ${profitMarginKpi}% (so với doanh thu kỳ)</li>
+                            <li>• ${products.length} mặt hàng trong hệ thống</li>
+                            <li>• Hoàn thành đơn: ${completedPct}% (trên đơn đã chốt)</li>
+                        </ul>
+                    </div>
+                    <div class="dashboard-trend-summary dashboard-trend-summary--warn">
+                        <h4>⚠️ Cần lưu ý</h4>
+                        <ul>
+                            <li>• ${lowStockProducts.length} SP sắp hết (tồn hiện tại)</li>
+                            <li>• Công nợ tổng KH: ${totalDebt.toLocaleString('vi-VN')} VNĐ</li>
+                            <li>• ${unpaidOrders} đơn công nợ trong kỳ</li>
+                            <li>• ${repairsReturned.length} phiếu sửa đã trả (doanh thu SC trong kỳ)</li>
+                        </ul>
+                    </div>
+                    <div class="dashboard-trend-summary dashboard-trend-summary--info">
+                        <h4>🎯 Gợi ý</h4>
+                        <ul>
+                            <li>• Nhập thêm hàng bán chạy trong kỳ</li>
+                            <li>• Khuyến mãi SP ít bán</li>
+                            <li>• Tăng giá trị đơn trung bình</li>
+                            <li>• Thu hồi công nợ đến hạn</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>`;
     }
     
     getCompanyInfoContent() {
@@ -8872,13 +9370,16 @@ class HamobileBanhang {
     }
 
     async guardOrdersBeforeCloudSave() {
+        if (this.demoData.orders != null && typeof this.demoData.orders === 'object' && !Array.isArray(this.demoData.orders)) {
+            this.demoData.orders = haAsPosArray(this.demoData.orders);
+        }
         const localOrders = Array.isArray(this.demoData.orders) ? this.demoData.orders : [];
         // Khi đang có thay đổi local chưa đồng bộ (đặc biệt là XÓA), không được "hợp nhất" kiểu union
         // vì sẽ kéo đơn từ cloud về và làm xóa không có hiệu lực.
         if (this._hasUnsyncedChanges) return;
         try {
             const loaded = await window.FirebaseStorage.load();
-            const remoteOrders = (loaded && loaded.data && Array.isArray(loaded.data.orders)) ? loaded.data.orders : [];
+            const remoteOrders = haAsPosArray(loaded && loaded.data ? loaded.data.orders : []);
             if (remoteOrders.length > 0) {
                 const byId = new Map();
                 remoteOrders.forEach((o) => {
@@ -9169,22 +9670,51 @@ class HamobileBanhang {
         const downloadFile = options && options.downloadFile === true;
         const cloudSnapshot = !options || options.cloudSnapshot !== false;
         const backupData = this.buildBackupExportPayload();
-        let snapshotOk = null;
-        if (cloudSnapshot && window.FirebaseStorage.getConfig()) {
-            snapshotOk = await window.FirebaseStorage.pushRollingSnapshot(backupData);
-        }
+        var snapPromise =
+            cloudSnapshot && window.FirebaseStorage.getConfig()
+                ? window.FirebaseStorage.pushRollingSnapshot(backupData)
+                : Promise.resolve(null);
+
         if (downloadFile) {
-            const jsonString = JSON.stringify(backupData, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            const vietnamTime = this.getVietnamTime();
-            link.download = 'Hangho_com_backup_' + vietnamTime.toISOString().split('T')[0] + '_' + vietnamTime.toTimeString().split(' ')[0].replace(/:/g, '') + '.json';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            var app = this;
+            await new Promise(function (resolve) {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        try {
+                            var jsonString = JSON.stringify(backupData);
+                            var blob = new Blob([jsonString], { type: 'application/json' });
+                            var url = URL.createObjectURL(blob);
+                            var link = document.createElement('a');
+                            link.href = url;
+                            var vietnamTime = app.getVietnamTime();
+                            link.download =
+                                'Hangho_com_backup_' +
+                                vietnamTime.toISOString().split('T')[0] +
+                                '_' +
+                                vietnamTime.toTimeString().split(' ')[0].replace(/:/g, '') +
+                                '.json';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setTimeout(function () {
+                                try {
+                                    URL.revokeObjectURL(url);
+                                } catch (_) {}
+                            }, 2500);
+                        } catch (err) {
+                            console.error('performBackup download:', err);
+                        }
+                        resolve();
+                    });
+                });
+            });
+        }
+
+        var snapshotOk = null;
+        try {
+            snapshotOk = await snapPromise;
+        } catch (_) {
+            snapshotOk = false;
         }
         const backupTime = this.getVietnamTime().toISOString();
         window.FirebaseStorage.setMeta('last_backup_time', backupTime);
@@ -9200,7 +9730,8 @@ class HamobileBanhang {
         const file = event.target.files[0];
         if (!file) return;
         
-        if (file.type !== 'application/json') {
+        const nameLc = String(file.name || '').toLowerCase();
+        if (file.type && file.type !== 'application/json' && !nameLc.endsWith('.json')) {
             this.showNotification('Vui lòng chọn file JSON hợp lệ', 'error');
             return;
         }
@@ -9208,10 +9739,11 @@ class HamobileBanhang {
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const backupData = JSON.parse(e.target.result);
-                
-                if (!backupData.data || !backupData.version) {
-                    throw new Error('File backup không đúng định dạng');
+                var raw = e.target.result;
+                if (typeof raw === 'string' && raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+                const backupData = JSON.parse(raw);
+                if (!backupData || typeof backupData !== 'object' || !backupData.data || typeof backupData.data !== 'object' || Array.isArray(backupData.data)) {
+                    throw new Error('File backup không đúng định dạng (cần có object data).');
                 }
                 
                 var restoreOk = await confirmAsync({
@@ -9226,15 +9758,20 @@ class HamobileBanhang {
                 if (!restoreOk) return;
                 
                 this.demoData = backupData.data;
+                haEnsurePosDataArraysInPlace(this.demoData);
                 if (!this.demoData.customers) this.demoData.customers = [];
                 if (!this.demoData.products) this.demoData.products = [];
                 if (backupData.company && typeof backupData.company === 'object') {
                     window.FirebaseStorage.setCompany(backupData.company);
                 }
+                window.FirebaseStorage.setData(this.demoData);
+                this.migrateProductData();
+                this._hasUnsyncedChanges = true;
                 
                 this.showNotification('Đang lưu dữ liệu...', 'info');
                 const ok = await this.saveToFirebaseImmediate();
                 if (ok) {
+                    this._hasUnsyncedChanges = false;
                     this.showNotification('Đã khôi phục và lưu dữ liệu thành công.', 'success');
                     this.loadPage(this.currentPage);
                 } else {
@@ -15719,246 +16256,12 @@ class HamobileBanhang {
     }
     
     showTrendAnalysis() {
-        // Tính toán dữ liệu phân tích
-        const orderRevenue = this.demoData.orders.reduce((sum, order) => sum + (this.isOrderFinalizedForRevenue(order) ? (order.total || 0) : 0), 0);
-        const repairRevenue = (this.demoData.repairs || []).reduce((s, r) => {
-            if ((r.status || '') !== 'Đã trả') return s;
-            return s + (Number(r.repairCost) || 0);
-        }, 0);
-        const totalRevenue = orderRevenue + repairRevenue;
-        const totalTransactions = this.demoData.orders.length + (this.demoData.repairs || []).length;
-        const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
-        const totalDebt = this.demoData.customers.reduce((sum, c) => sum + c.debt, 0);
-        const paidOrders = this.demoData.orders.filter(order => order.paymentStatus === 'Đã thanh toán').length;
-        const unpaidOrders = this.demoData.orders.filter(order => order.paymentStatus === 'Công nợ').length;
-        const completedOrders = this.demoData.orders.filter(order => order.status === 'Hoàn thành').length;
-        
-        // Tính doanh thu theo tháng (giả lập 6 tháng gần đây)
-        const monthlyRevenue = [
-            { month: 'T6/2025', revenue: 75000000 },
-            { month: 'T7/2025', revenue: 89000000 },
-            { month: 'T8/2025', revenue: 125000000 },
-            { month: 'T9/2025', revenue: 98000000 },
-            { month: 'T10/2025', revenue: 115000000 },
-            { month: 'T11/2025', revenue: totalRevenue }
-        ];
-        
-        // Top sản phẩm bán chạy
-        const productSales = {};
-        this.demoData.orders.forEach(order => {
-            order.products.forEach(product => {
-                if (!productSales[product.name]) {
-                    productSales[product.name] = 0;
-                }
-                productSales[product.name] += product.quantity;
-            });
-        });
-        const topProducts = Object.entries(productSales)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5);
-        
-        // Phân tích tồn kho
-        const lowStockProducts = this.demoData.products.filter(p => p.stock < 10);
-        const normalStockProducts = this.demoData.products.filter(p => p.stock >= 10 && p.stock < 50);
-        const highStockProducts = this.demoData.products.filter(p => p.stock >= 50);
-        
-        const analysisHTML = `
-            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1001; display: flex; justify-content: center; align-items: flex-start; padding: 20px; overflow-y: auto;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
-                <div style="background: white; padding: 32px; border-radius: 16px; width: 1200px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);" onclick="event.stopPropagation()">
-                    <div style="text-align: center; margin-bottom: 32px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;">
-                        <h2 style="color: var(--text-primary); font-size: 28px; margin: 0;">📊 Báo cáo Phân tích Xu hướng Kinh doanh</h2>
-                        <p style="color: #6b7280; margin: 8px 0 0 0; font-size: 16px;">Tổng quan hiệu suất và dự báo phát triển</p>
-                    </div>
-                    
-                    <!-- KPI Cards -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px;">
-                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">${totalRevenue.toLocaleString('vi-VN')}</div>
-                            <div style="font-size: 14px; opacity: 0.9;">Tổng Doanh Thu (VNĐ)</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">${avgOrderValue.toLocaleString('vi-VN')}</div>
-                            <div style="font-size: 14px; opacity: 0.9;">Giá trị ĐH TB (VNĐ)</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">${this.demoData.orders.length}</div>
-                            <div style="font-size: 14px; opacity: 0.9;">Tổng Đơn Hàng</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 8px;">${this.demoData.customers.length}</div>
-                            <div style="font-size: 14px; opacity: 0.9;">Khách Hàng</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Charts Row 1: Revenue Trend & Payment Status -->
-                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
-                        <!-- Biểu đồ doanh thu 6 tháng -->
-                        <div style="background: #f9fafb; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-                            <h3 style="color: var(--text-primary); margin-bottom: 20px; text-align: center;">📈 Xu hướng Doanh thu 6 tháng</h3>
-                            <div style="height: 200px; position: relative; display: flex; align-items: end; justify-content: space-between; padding: 0 10px; border-bottom: 2px solid #d1d5db;">
-                                ${monthlyRevenue.map((item, index) => {
-                                    const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue));
-                                    const height = (item.revenue / maxRevenue) * 160;
-                                    const color = index === monthlyRevenue.length - 1 ? '#10b981' : '#6b7280';
-                                    return `
-                                        <div style="display: flex; flex-direction: column; align-items: center;">
-                                            <div style="background: ${color}; width: 40px; height: ${height}px; border-radius: 4px 4px 0 0; margin-bottom: 8px; position: relative; transition: all 0.3s;">
-                                                <div style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #374151; font-weight: 600;">
-                                                    ${(item.revenue / 1000000).toFixed(0)}M
-                                                </div>
-                                            </div>
-                                            <div style="font-size: 12px; color: #6b7280; font-weight: 500; text-align: center;">
-                                                ${item.month}
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                        
-                        <!-- Biểu đồ tròn trạng thái thanh toán -->
-                        <div style="background: #f9fafb; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-                            <h3 style="color: var(--text-primary); margin-bottom: 20px; text-align: center;">💳 Trạng thái Thanh toán</h3>
-                            <div style="position: relative; width: 120px; height: 120px; margin: 0 auto 20px;">
-                                <svg width="120" height="120" style="transform: rotate(-90deg);">
-                                    <!-- Background circle -->
-                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="12"></circle>
-                                    <!-- Paid orders -->
-                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="12" 
-                                            stroke-dasharray="${(paidOrders / this.demoData.orders.length * 314).toFixed(1)} 314"
-                                            stroke-linecap="round"></circle>
-                                    <!-- Unpaid orders -->
-                                    <circle cx="60" cy="60" r="35" fill="none" stroke="#f59e0b" stroke-width="8" 
-                                            stroke-dasharray="${(unpaidOrders / this.demoData.orders.length * 220).toFixed(1)} 220"
-                                            stroke-linecap="round"></circle>
-                                </svg>
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #374151;">${this.demoData.orders.length}</div>
-                                    <div style="font-size: 11px; color: #6b7280;">Đơn hàng</div>
-                                </div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="margin-bottom: 8px;">
-                                    <span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 50%; margin-right: 8px;"></span>
-                                    <span style="font-size: 13px; color: #374151;">Đã TT: ${paidOrders}</span>
-                                </div>
-                                <div>
-                                    <span style="display: inline-block; width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; margin-right: 8px;"></span>
-                                    <span style="font-size: 13px; color: #374151;">Công nợ: ${unpaidOrders}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Charts Row 2: Top Products & Inventory -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
-                        <!-- Top sản phẩm bán chạy -->
-                        <div style="background: #f9fafb; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-                            <h3 style="color: var(--text-primary); margin-bottom: 20px; text-align: center;">🏆 Top 5 Sản phẩm bán chạy</h3>
-                            <div style="space-y: 12px;">
-                                ${topProducts.map((product, index) => {
-                                    const maxQuantity = topProducts[0][1];
-                                    const percentage = (product[1] / maxQuantity) * 100;
-                                    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444'];
-                                    return `
-                                        <div style="margin-bottom: 12px;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                                <span style="font-size: 13px; color: #374151; font-weight: 500;">${product[0]}</span>
-                                                <span style="font-size: 13px; color: #6b7280; font-weight: 600;">${product[1]}</span>
-                                            </div>
-                                            <div style="background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
-                                                <div style="background: ${colors[index]}; height: 100%; width: ${percentage}%; border-radius: 4px; transition: width 0.5s ease;"></div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                        
-                        <!-- Phân tích tồn kho -->
-                        <div style="background: #f9fafb; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-                            <h3 style="color: var(--text-primary); margin-bottom: 20px; text-align: center;">📦 Phân tích Tồn kho</h3>
-                            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                                <div style="position: relative; width: 100px; height: 100px;">
-                                    <svg width="100" height="100" style="transform: rotate(-90deg);">
-                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="10"></circle>
-                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#dc2626" stroke-width="10" 
-                                                stroke-dasharray="${(lowStockProducts.length / this.demoData.products.length * 251).toFixed(1)} 251"></circle>
-                                        <circle cx="50" cy="50" r="30" fill="none" stroke="#f59e0b" stroke-width="8" 
-                                                stroke-dasharray="${(normalStockProducts.length / this.demoData.products.length * 188).toFixed(1)} 188"></circle>
-                                        <circle cx="50" cy="50" r="20" fill="none" stroke="#10b981" stroke-width="6" 
-                                                stroke-dasharray="${(highStockProducts.length / this.demoData.products.length * 126).toFixed(1)} 126"></circle>
-                                    </svg>
-                                </div>
-                            </div>
-                            <div style="text-align: center; font-size: 12px;">
-                                <div style="margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 10px; height: 10px; background: #dc2626; border-radius: 50%; margin-right: 6px;"></span>
-                                    Sắp hết: ${lowStockProducts.length}
-                                </div>
-                                <div style="margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 10px; height: 10px; background: #f59e0b; border-radius: 50%; margin-right: 6px;"></span>
-                                    Bình thường: ${normalStockProducts.length}
-                                </div>
-                                <div>
-                                    <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 50%; margin-right: 6px;"></span>
-                                    Dồi dào: ${highStockProducts.length}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Analysis Summary -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 32px;">
-                        <div style="background: #f0fdf4; padding: 20px; border-radius: 12px; border: 1px solid #bbf7d0;">
-                            <h4 style="color: #059669; margin-bottom: 12px; display: flex; align-items: center;">
-                                ✅ Điểm mạnh
-                            </h4>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="padding: 6px 0; font-size: 13px; color: #065f46;">• ${this.demoData.customers.length} khách hàng ổn định</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #065f46;">• Đơn hàng TB: ${avgOrderValue.toLocaleString('vi-VN')} VNĐ</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #065f46;">• ${this.demoData.products.length} sản phẩm đa dạng</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #065f46;">• Tỷ lệ hoàn thành: ${((completedOrders/this.demoData.orders.length)*100).toFixed(1)}%</li>
-                            </ul>
-                        </div>
-                        
-                        <div style="background: #fef2f2; padding: 20px; border-radius: 12px; border: 1px solid #fecaca;">
-                            <h4 style="color: #dc2626; margin-bottom: 12px; display: flex; align-items: center;">
-                                ⚠️ Cần cải thiện
-                            </h4>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="padding: 6px 0; font-size: 13px; color: #991b1b;">• ${lowStockProducts.length} SP sắp hết hàng</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #991b1b;">• Công nợ: ${totalDebt.toLocaleString('vi-VN')} VNĐ</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #991b1b;">• ${unpaidOrders} đơn chưa thanh toán</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #991b1b;">• Cần thu hồi công nợ</li>
-                            </ul>
-                        </div>
-                        
-                        <div style="background: #f0f9ff; padding: 20px; border-radius: 12px; border: 1px solid #bfdbfe;">
-                            <h4 style="color: #0369a1; margin-bottom: 12px; display: flex; align-items: center;">
-                                🎯 Khuyến nghị
-                            </h4>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="padding: 6px 0; font-size: 13px; color: #0c4a6e;">• Nhập thêm hàng bán chạy</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #0c4a6e;">• Khuyến mãi sản phẩm ế</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #0c4a6e;">• Tăng giá trị đơn hàng</li>
-                                <li style="padding: 6px 0; font-size: 13px; color: #0c4a6e;">• Marketing khách hàng mới</li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <div style="text-align: center; border-top: 2px solid #f3f4f6; padding-top: 20px;">
-                        <button onclick="closeModal(this.closest('div[style*=fixed]'))" 
-                                style="padding: 14px 40px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3); transition: all 0.3s;"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(59, 130, 246, 0.4)'"
-                                onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 14px rgba(59, 130, 246, 0.3)'">
-                            Đóng báo cáo
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', analysisHTML);
+        this.loadPage('dashboard');
+        const scrollTo = () => {
+            const el = document.getElementById('dashboard-trend-analysis');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        requestAnimationFrame(() => requestAnimationFrame(scrollTo));
     }
 
     // Customer Search and Quick Add Functions
@@ -17625,7 +17928,7 @@ class HamobileBanhang {
         }, 0);
 
         // Tính toán lại các số liệu thống kê (Doanh thu = đơn hàng + sửa chữa)
-        const orderRevenue = filteredOrders.reduce((sum, order) => sum + (this.isOrderFinalizedForRevenue(order) ? (order.total || 0) : 0), 0);
+        const orderRevenue = filteredOrders.reduce((sum, order) => sum + this.getOrderRecordedNetRevenue(order), 0);
         const totalRevenue = orderRevenue + repairRevenue;
 
         const orderProfit = filteredOrders.reduce((sum, order) => sum + this.calcOrderProfit(order), 0);

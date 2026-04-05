@@ -2489,6 +2489,407 @@ select.edit-order-inp{
   gap:clamp(14px,2vw,22px);
 }
 
+/* Khối Phân tích xu hướng (đưa từ modal Báo cáo lên Tổng quan) */
+#main-content.page-dashboard .dashboard-trend-section{
+  margin-top:0;
+  margin-bottom:0;
+}
+
+#main-content.page-dashboard .dashboard-trend-header{
+  position:relative;
+  margin:0 0 28px;
+  padding:24px 22px 22px 26px;
+  border-radius:16px;
+  border:1px solid rgba(5,150,105,.2);
+  background:linear-gradient(145deg,#ffffff 0%,#f0fdf4 42%,#ecfdf5 100%);
+  box-shadow:
+    0 4px 28px rgba(5,150,105,.1),
+    0 1px 3px rgba(15,23,42,.06);
+  overflow:hidden;
+}
+
+#main-content.page-dashboard .dashboard-trend-header::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:4px;
+  background:linear-gradient(90deg,#047857 0%,#059669 45%,#34d399 100%);
+  opacity:.95;
+}
+
+#main-content.page-dashboard .dashboard-trend-header-row{
+  position:relative;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+}
+
+#main-content.page-dashboard .dashboard-trend-header-row > div:first-child{
+  text-align:left;
+  flex:1 1 240px;
+  min-width:0;
+}
+
+#main-content.page-dashboard .dashboard-trend-title{
+  margin:0;
+  padding:0;
+  font-size:clamp(1.22rem,2.5vw,1.62rem);
+  font-weight:800;
+  letter-spacing:-0.03em;
+  line-height:1.2;
+  color:#065f46;
+  border-bottom:none;
+}
+
+#main-content.page-dashboard .dashboard-trend-subtitle{
+  display:inline-block;
+  margin:12px 0 0;
+  padding:8px 16px;
+  max-width:100%;
+  font-size:13px;
+  font-weight:600;
+  line-height:1.5;
+  color:#166534;
+  font-variant-numeric:tabular-nums;
+  background:rgba(255,255,255,.72);
+  border:1px solid rgba(167,243,208,.85);
+  border-radius:999px;
+  box-shadow:0 1px 2px rgba(5,150,105,.06);
+}
+
+#main-content.page-dashboard .dashboard-trend-period-wrap{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-shrink:0;
+  padding:12px 16px;
+  border-radius:14px;
+  background:rgba(255,255,255,.88);
+  border:1px solid rgba(5,150,105,.14);
+  box-shadow:0 2px 14px rgba(5,150,105,.07);
+}
+
+#main-content.page-dashboard .dashboard-trend-period-label{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:#047857;
+  white-space:nowrap;
+}
+
+#main-content.page-dashboard .dashboard-trend-period-select{
+  min-width:196px;
+  max-width:100%;
+  padding:11px 40px 11px 14px;
+  font-family:inherit;
+  font-size:14px;
+  font-weight:700;
+  line-height:1.3;
+  color:#064e3b;
+  cursor:pointer;
+  border:1px solid #a7f3d0;
+  border-radius:11px;
+  background-color:#fff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' viewBox='0 0 24 24' stroke='%23047857'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2.2' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 11px center;
+  background-size:18px;
+  appearance:none;
+  -webkit-appearance:none;
+  transition:border-color .2s ease,box-shadow .2s ease,transform .15s ease;
+}
+
+#main-content.page-dashboard .dashboard-trend-period-select:hover{
+  border-color:#34d399;
+  box-shadow:0 2px 10px rgba(5,150,105,.12);
+}
+
+#main-content.page-dashboard .dashboard-trend-period-select:focus{
+  outline:none;
+  border-color:#059669;
+  box-shadow:0 0 0 3px rgba(16,185,129,.28);
+}
+
+@media (max-width:640px){
+  #main-content.page-dashboard .dashboard-trend-header{
+    padding:22px 18px 20px;
+    text-align:center;
+  }
+
+  #main-content.page-dashboard .dashboard-trend-header-row{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  #main-content.page-dashboard .dashboard-trend-header-row > div:first-child{
+    text-align:center;
+  }
+
+  #main-content.page-dashboard .dashboard-trend-subtitle{
+    display:inline-block;
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  #main-content.page-dashboard .dashboard-trend-period-wrap{
+    justify-content:space-between;
+    width:100%;
+  }
+
+  #main-content.page-dashboard .dashboard-trend-period-select{
+    flex:1;
+    min-width:0;
+  }
+}
+
+#main-content.page-dashboard .dashboard-trend-kpi{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:16px;
+  margin-bottom:28px;
+}
+
+#main-content.page-dashboard .dashboard-trend-kpi-card{
+  color:#fff;
+  padding:18px;
+  border-radius:12px;
+  text-align:center;
+}
+
+#main-content.page-dashboard .dashboard-trend-kpi-card--green{background:linear-gradient(135deg,#10b981 0%,#059669 100%);}
+#main-content.page-dashboard .dashboard-trend-kpi-card--blue{background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);}
+#main-content.page-dashboard .dashboard-trend-kpi-card--amber{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);}
+#main-content.page-dashboard .dashboard-trend-kpi-card--violet{background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%);}
+
+#main-content.page-dashboard .dashboard-trend-kpi-value{
+  font-size:clamp(22px,4vw,32px);
+  font-weight:700;
+  margin-bottom:6px;
+  word-break:break-word;
+}
+
+#main-content.page-dashboard .dashboard-trend-kpi-label{font-size:13px;opacity:.92;}
+
+#main-content.page-dashboard .dashboard-trend-row{
+  display:grid;
+  gap:20px;
+  margin-bottom:28px;
+}
+
+#main-content.page-dashboard .dashboard-trend-row--2-1{grid-template-columns:2fr 1fr;}
+#main-content.page-dashboard .dashboard-trend-row--1-1{grid-template-columns:1fr 1fr;}
+#main-content.page-dashboard .dashboard-trend-row--3{grid-template-columns:repeat(3,1fr);}
+
+@media (max-width:900px){
+  #main-content.page-dashboard .dashboard-trend-row--2-1,
+  #main-content.page-dashboard .dashboard-trend-row--1-1,
+  #main-content.page-dashboard .dashboard-trend-row--3{
+    grid-template-columns:1fr;
+  }
+}
+
+#main-content.page-dashboard .dashboard-trend-panel{
+  background:#f9fafb;
+  padding:clamp(16px,3vw,24px);
+  border-radius:12px;
+  border:1px solid #e5e7eb;
+}
+
+#main-content.page-dashboard .dashboard-trend-panel-title{
+  color:var(--text-primary);
+  margin:0 0 16px;
+  text-align:center;
+  font-size:16px;
+  font-weight:700;
+}
+
+#main-content.page-dashboard .dashboard-trend-bar-chart{
+  min-height:200px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  padding:0 4px 4px;
+  border-bottom:2px solid #d1d5db;
+  gap:4px;
+}
+
+#main-content.page-dashboard .dashboard-trend-bar-col{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  flex:1;
+  min-width:0;
+}
+
+#main-content.page-dashboard .dashboard-trend-bar{
+  width:min(40px,100%);
+  min-height:4px;
+  border-radius:4px 4px 0 0;
+  margin-bottom:8px;
+  position:relative;
+}
+
+#main-content.page-dashboard .dashboard-trend-bar-tip{
+  position:absolute;
+  top:-22px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:10px;
+  color:#374151;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+#main-content.page-dashboard .dashboard-trend-bar-label{
+  font-size:11px;
+  color:#6b7280;
+  font-weight:500;
+  text-align:center;
+}
+
+#main-content.page-dashboard .dashboard-trend-donut-wrap{
+  display:flex;
+  justify-content:center;
+  margin-bottom:12px;
+}
+
+#main-content.page-dashboard .dashboard-trend-donut{
+  position:relative;
+  width:120px;
+  height:120px;
+}
+
+#main-content.page-dashboard .dashboard-trend-donut-center{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  text-align:center;
+}
+
+#main-content.page-dashboard .dashboard-trend-donut-num{font-size:18px;font-weight:700;color:#374151;}
+#main-content.page-dashboard .dashboard-trend-donut-cap{font-size:11px;color:#6b7280;}
+
+#main-content.page-dashboard .dashboard-trend-legend{
+  text-align:center;
+  font-size:13px;
+  color:#374151;
+}
+
+#main-content.page-dashboard .dashboard-trend-legend > div{margin-bottom:6px;}
+
+#main-content.page-dashboard .dashboard-trend-dot{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  margin-right:8px;
+  vertical-align:middle;
+}
+
+#main-content.page-dashboard .dashboard-trend-dot--green{background:#10b981;}
+#main-content.page-dashboard .dashboard-trend-dot--amber{background:#f59e0b;}
+#main-content.page-dashboard .dashboard-trend-dot--red{background:#dc2626;}
+
+#main-content.page-dashboard .dashboard-trend-product-row{margin-bottom:12px;}
+
+#main-content.page-dashboard .dashboard-trend-product-meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:4px;
+  font-size:13px;
+  gap:8px;
+}
+
+#main-content.page-dashboard .dashboard-trend-product-meta span:first-child{
+  color:#374151;
+  font-weight:500;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+#main-content.page-dashboard .dashboard-trend-product-meta span:last-child{color:#6b7280;font-weight:600;flex-shrink:0;}
+
+#main-content.page-dashboard .dashboard-trend-product-track{
+  background:#e5e7eb;
+  height:8px;
+  border-radius:4px;
+  overflow:hidden;
+}
+
+#main-content.page-dashboard .dashboard-trend-product-fill{height:100%;border-radius:4px;max-width:100%;}
+
+#main-content.page-dashboard .dashboard-trend-inventory-svg{
+  display:flex;
+  justify-content:center;
+  margin-bottom:12px;
+}
+
+#main-content.page-dashboard .dashboard-trend-inventory-legend{
+  text-align:center;
+  font-size:12px;
+  color:#374151;
+}
+
+#main-content.page-dashboard .dashboard-trend-inventory-legend > div{margin-bottom:6px;}
+
+#main-content.page-dashboard .dashboard-trend-empty{
+  text-align:center;
+  color:#6b7280;
+  font-size:14px;
+  margin:8px 0;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary{
+  padding:18px;
+  border-radius:12px;
+  border:1px solid;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary h4{
+  margin:0 0 10px;
+  font-size:15px;
+  font-weight:700;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary ul{
+  list-style:none;
+  padding:0;
+  margin:0;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary li{padding:5px 0;font-size:13px;}
+
+#main-content.page-dashboard .dashboard-trend-summary--ok{
+  background:#f0fdf4;
+  border-color:#bbf7d0;
+  color:#065f46;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary--ok h4{color:#059669;}
+
+#main-content.page-dashboard .dashboard-trend-summary--warn{
+  background:#fef2f2;
+  border-color:#fecaca;
+  color:#991b1b;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary--warn h4{color:#dc2626;}
+
+#main-content.page-dashboard .dashboard-trend-summary--info{
+  background:#f0f9ff;
+  border-color:#bfdbfe;
+  color:#0c4a6e;
+}
+
+#main-content.page-dashboard .dashboard-trend-summary--info h4{color:#0369a1;}
+
 /* Giữ vị trí như .content ban đầu: khối chính max 1280px, căn giữa trong vùng còn lại (không dồn sát trái) */
 #main-content.page-dashboard .dashboard-layout{
   display:block;
