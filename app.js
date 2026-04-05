@@ -1197,15 +1197,10 @@ class HamobileBanhang {
 
     // Tạo orders với ngày hiện tại (giờ Việt Nam)
     generateOrdersWithCurrentDate() {
-        const today = this.getVietnamTime();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const twoDaysAgo = new Date(today);
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        const threeDaysAgo = new Date(today);
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        const fourDaysAgo = new Date(today);
-        fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+        const todayStr = this.getVietnamDateKey();
+        const yesterdayStr = this.addDaysToVietnamDateKey(todayStr, -1);
+        const twoDaysAgoStr = this.addDaysToVietnamDateKey(todayStr, -2);
+        const threeDaysAgoStr = this.addDaysToVietnamDateKey(todayStr, -3);
 
         return [
             // Đơn hàng từ khách hàng doanh nghiệp - để test hiển thị
@@ -1213,7 +1208,7 @@ class HamobileBanhang {
                 id: 'DH007', 
                 customerId: 'KH003', 
                 customerName: 'Vũ Đức Nam',
-                date: today.toISOString().split('T')[0], 
+                date: todayStr, 
                 time: '17:30',
                 products: [
                     { id: 'SP003', name: 'MacBook Air M2', quantity: 2, price: 28900000 }
@@ -1228,7 +1223,7 @@ class HamobileBanhang {
                 id: 'DH006', 
                 customerId: 'KH001', 
                 customerName: 'Đặng Thanh Hùng',
-                date: today.toISOString().split('T')[0], 
+                date: todayStr, 
                 time: '16:45',
                 products: [
                     { id: 'SP001', name: 'iPhone 15 Pro', quantity: 1, price: 28900000 }
@@ -1242,7 +1237,7 @@ class HamobileBanhang {
                 id: 'DH002', 
                 customerId: 'KH002', 
                 customerName: 'Bùi Thị Mai',
-                date: today.toISOString().split('T')[0], 
+                date: todayStr, 
                 time: '14:15',
                 products: [
                     { id: 'SP002', name: 'Samsung Galaxy S24', quantity: 1, price: 24900000 }
@@ -1256,7 +1251,7 @@ class HamobileBanhang {
                 id: 'DH001', 
                 customerId: 'KH001', 
                 customerName: 'Đặng Thanh Hùng',
-                date: today.toISOString().split('T')[0], 
+                date: todayStr, 
                 time: '10:30',
                 products: [
                     { id: 'SP001', name: 'iPhone 15 Pro', quantity: 1, price: 28900000 },
@@ -1271,7 +1266,7 @@ class HamobileBanhang {
                 id: 'DH003', 
                 customerId: 'KH003', 
                 customerName: 'Vũ Đức Nam',
-                date: yesterday.toISOString().split('T')[0], 
+                date: yesterdayStr, 
                 time: '16:45',
                 products: [
                     { id: 'SP003', name: 'MacBook Air M2', quantity: 1, price: 28900000 },
@@ -1286,7 +1281,7 @@ class HamobileBanhang {
                 id: 'DH004', 
                 customerId: 'KH004', 
                 customerName: 'Ngô Minh Tuấn',
-                date: twoDaysAgo.toISOString().split('T')[0], 
+                date: twoDaysAgoStr, 
                 time: '09:20',
                 products: [
                     { id: 'SP006', name: 'Quả bóng đá FIFA', quantity: 2, price: 500000 }
@@ -1300,7 +1295,7 @@ class HamobileBanhang {
                 id: 'DH005', 
                 customerId: 'KH005', 
                 customerName: 'Đinh Thị Lan',
-                date: threeDaysAgo.toISOString().split('T')[0], 
+                date: threeDaysAgoStr, 
                 time: '11:30',
                 products: [
                     { id: 'SP007', name: 'Vợt Pickle Ball Pro', quantity: 1, price: 800000 },
@@ -1316,32 +1311,59 @@ class HamobileBanhang {
 
     // Tạo sales với ngày hiện tại (giờ Việt Nam)
     generateSalesWithCurrentDate() {
-        const today = this.getVietnamTime();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const twoDaysAgo = new Date(today);
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        const todayStr = this.getVietnamDateKey();
+        const yesterdayStr = this.addDaysToVietnamDateKey(todayStr, -1);
+        const twoDaysAgoStr = this.addDaysToVietnamDateKey(todayStr, -2);
 
         return [
-            { id: 'DH001', date: today.toISOString().split('T')[0], customer: 'Đặng Thanh Hùng', total: 2500000, status: 'Hoàn thành', items: 3 },
-            { id: 'DH002', date: today.toISOString().split('T')[0], customer: 'Bùi Thị Mai', total: 1800000, status: 'Chờ xử lý', items: 2 },
-            { id: 'DH003', date: yesterday.toISOString().split('T')[0], customer: 'Vũ Đức Nam', total: 3200000, status: 'Đang giao', items: 4 },
-            { id: 'DH004', date: yesterday.toISOString().split('T')[0], customer: 'Ngô Minh Tuấn', total: 950000, status: 'Hoàn thành', items: 1 },
-            { id: 'DH005', date: twoDaysAgo.toISOString().split('T')[0], customer: 'Đinh Thị Lan', total: 4200000, status: 'Hoàn thành', items: 5 }
+            { id: 'DH001', date: todayStr, customer: 'Đặng Thanh Hùng', total: 2500000, status: 'Hoàn thành', items: 3 },
+            { id: 'DH002', date: todayStr, customer: 'Bùi Thị Mai', total: 1800000, status: 'Chờ xử lý', items: 2 },
+            { id: 'DH003', date: yesterdayStr, customer: 'Vũ Đức Nam', total: 3200000, status: 'Đang giao', items: 4 },
+            { id: 'DH004', date: yesterdayStr, customer: 'Ngô Minh Tuấn', total: 950000, status: 'Hoàn thành', items: 1 },
+            { id: 'DH005', date: twoDaysAgoStr, customer: 'Đinh Thị Lan', total: 4200000, status: 'Hoàn thành', items: 5 }
         ];
     }
 
-    // Helper function để lấy thời gian Việt Nam (UTC+7)
+    /** Thời điểm hiện tại (chuẩn UTC nội bộ Date — dùng cho so sánh, getTimeAgo). */
     getVietnamTime() {
-        const now = new Date();
-        // Lấy thời gian hiện tại theo múi giờ Việt Nam (Asia/Ho_Chi_Minh)
-        return new Date(now.toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
+        return new Date();
+    }
+
+    /** Ngày lịch Việt Nam dạng YYYY-MM-DD (Asia/Ho_Chi_Minh). */
+    getVietnamDateKey(date = new Date()) {
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(date);
+    }
+
+    /** Cộng/trừ ngày trên lịch VN (isoYmd = YYYY-MM-DD). */
+    addDaysToVietnamDateKey(isoYmd, deltaDays) {
+        const p = String(isoYmd || '').split('-').map(Number);
+        const y = p[0];
+        const mo = p[1];
+        const da = p[2];
+        if (!y || !mo || !da) return this.getVietnamDateKey();
+        const t = Date.UTC(y, mo - 1, da + deltaDays, 12, 0, 0);
+        return this.getVietnamDateKey(new Date(t));
+    }
+
+    /** Parse ngày+giờ đơn hàng theo múi VN (+07), trả về Date UTC hoặc null. */
+    parseOrderInstantVN(dateStr, timeStr) {
+        const d = String(dateStr || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+        const raw = String(timeStr || '00:00').trim();
+        const hm = raw.match(/^(\d{1,2}):(\d{2})/);
+        const h = hm ? Math.min(23, Math.max(0, parseInt(hm[1], 10))) : 0;
+        const m = hm ? Math.min(59, Math.max(0, parseInt(hm[2], 10))) : 0;
+        const hh = String(h).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        const inst = new Date(`${d}T${hh}:${mm}:00+07:00`);
+        return isNaN(inst.getTime()) ? null : inst;
     }
     
     // Tính toán khoảng thời gian từ thời điểm hiện tại
     getTimeAgo(pastTime) {
-        const now = this.getVietnamTime();
-        const diff = now.getTime() - pastTime.getTime();
+        if (!pastTime || !(pastTime instanceof Date) || isNaN(pastTime.getTime())) return '—';
+        const diff = Date.now() - pastTime.getTime();
+        if (diff < 0) return 'Vừa xong';
         const minutes = Math.floor(diff / (1000 * 60));
         const hours = Math.floor(minutes / 60);
         const days = Math.floor(hours / 24);
@@ -1377,6 +1399,27 @@ class HamobileBanhang {
             minute: '2-digit',
             second: '2-digit'
         });
+    }
+
+    stopDashboardVnClock() {
+        if (this._dashboardVnClockId != null) {
+            clearInterval(this._dashboardVnClockId);
+            this._dashboardVnClockId = null;
+        }
+    }
+
+    startDashboardVnClock() {
+        this.stopDashboardVnClock();
+        const tick = () => {
+            const el = document.getElementById('dashboard-vn-clock');
+            if (!el) {
+                this.stopDashboardVnClock();
+                return;
+            }
+            el.textContent = `[${this.formatVietnameseTime()}]`;
+        };
+        tick();
+        this._dashboardVnClockId = setInterval(tick, 1000);
     }
 
     // Helper function để sắp xếp đơn hàng theo ngày mới nhất
@@ -1444,15 +1487,6 @@ class HamobileBanhang {
         `;
     }
 
-    // Force refresh activities
-    refreshActivities() {
-        const container = document.getElementById('activities-container');
-        if (container) {
-            container.innerHTML = this.getRecentActivities();
-            this.showNotification(`Đã cập nhật lúc ${this.formatVietnameseTime()}`, 'success');
-        }
-    }
-    
     setupNavigation() {
         const navItems = document.querySelectorAll('.nav-item');
         navItems.forEach(item => {
@@ -1562,6 +1596,12 @@ class HamobileBanhang {
         document.getElementById('page-title').textContent = titles.title;
         document.getElementById('page-subtitle').textContent = titles.subtitle;
         const mainEl = document.getElementById('main-content');
+        if (this._dashboardSidebarLayoutHandler) {
+            window.removeEventListener('resize', this._dashboardSidebarLayoutHandler);
+            this._dashboardSidebarLayoutHandler = null;
+        }
+        this.stopDashboardVnClock();
+        mainEl.style.removeProperty('--dashboard-sidebar-top');
         mainEl.classList.remove('page-sales', 'page-customers', 'page-debts', 'page-orders', 'page-dashboard');
         if (pageName === 'sales') mainEl.classList.add('page-sales');
         if (pageName === 'customers') mainEl.classList.add('page-customers');
@@ -1573,6 +1613,24 @@ class HamobileBanhang {
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
         if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
         // FAB mobile removed; no DOM reparenting needed.
+
+        if (pageName === 'dashboard') {
+            this._dashboardSidebarLayoutHandler = () => {
+                const el = document.getElementById('main-content');
+                if (!el || !el.classList.contains('page-dashboard')) return;
+                if (typeof window.matchMedia === 'function' && !window.matchMedia('(min-width: 1024px)').matches) {
+                    el.style.removeProperty('--dashboard-sidebar-top');
+                    return;
+                }
+                const topPx = Math.max(0, Math.round(el.getBoundingClientRect().top));
+                el.style.setProperty('--dashboard-sidebar-top', `${topPx}px`);
+            };
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => this._dashboardSidebarLayoutHandler && this._dashboardSidebarLayoutHandler());
+            });
+            window.addEventListener('resize', this._dashboardSidebarLayoutHandler);
+            this.startDashboardVnClock();
+        }
         
         // Add fade in animation
         document.getElementById('main-content').classList.add('fade-in');
@@ -1590,6 +1648,9 @@ class HamobileBanhang {
                     this.updatePOSDiscountHint();
                     this.updatePOSDebtHint();
                 } catch (_) {}
+            }
+            if (pageName === 'dashboard' && this._dashboardSidebarLayoutHandler) {
+                this._dashboardSidebarLayoutHandler();
             }
             // FAB mobile removed; no DOM reparenting needed.
         }, 500);
@@ -1659,10 +1720,8 @@ class HamobileBanhang {
         const orders = data.orders || [];
         const customers = data.customers || [];
         const products = data.products || [];
-        const todayStr = this.getVietnamTime().toISOString().split('T')[0];
-        const yesterday = new Date(this.getVietnamTime());
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const todayStr = this.getVietnamDateKey();
+        const yesterdayStr = this.addDaysToVietnamDateKey(todayStr, -1);
         const todayOrders = orders.filter(o => o && o.date === todayStr);
         const yesterdayOrders = orders.filter(o => o && o.date === yesterdayStr);
         const repairs = data.repairs || [];
@@ -1684,14 +1743,15 @@ class HamobileBanhang {
         const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
         const orderChange = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
         return `
-            <div class="fade-in">
+            <div class="dashboard-page-root">
+                <div class="dashboard-main-column">
                 <div class="dashboard-layout">
                     <div class="dashboard-main">
                 <div class="stats-grid">
                     <div class="stat-card revenue">
                         <div class="stat-header">
                             <span class="stat-title">Doanh thu hôm nay</span>
-                            <span class="stat-icon">💰</span>
+                            <span class="stat-icon">💵</span>
                         </div>
                         <div class="stat-value">${todayRevenue.toLocaleString('vi-VN')} VNĐ</div>
                         <div class="stat-change ${todayRevenue >= yesterdayRevenue ? 'positive' : 'negative'}">${yesterdayRevenue > 0 ? (todayRevenue >= yesterdayRevenue ? '↗' : '↘') + ' ' + revenueChange + '% so với hôm qua' : (todayOrders.length ? 'Có đơn hôm nay' : 'Chưa có đơn')}</div>
@@ -1699,7 +1759,7 @@ class HamobileBanhang {
                     <div class="stat-card orders">
                         <div class="stat-header">
                             <span class="stat-title">Đơn hàng mới</span>
-                            <span class="stat-icon">📋</span>
+                            <span class="stat-icon">🧾</span>
                         </div>
                         <div class="stat-value">${todayOrders.length}</div>
                         <div class="stat-change ${todayOrders.length >= yesterdayOrders.length ? 'positive' : 'negative'}">${yesterdayOrders.length > 0 ? (todayOrders.length >= yesterdayOrders.length ? '↗' : '↘') + ' ' + orderChange + '% so với hôm qua' : (todayOrders.length ? 'Có đơn' : 'Chưa có đơn')}</div>
@@ -1707,7 +1767,7 @@ class HamobileBanhang {
                     <div class="stat-card customers">
                         <div class="stat-header">
                             <span class="stat-title">Khách hàng</span>
-                            <span class="stat-icon">👥</span>
+                            <span class="stat-icon">🧑‍🤝‍🧑</span>
                         </div>
                         <div class="stat-value">${customers.length}</div>
                         <div class="stat-change positive">Tổng ${customers.length} khách hàng</div>
@@ -1715,7 +1775,7 @@ class HamobileBanhang {
                     <div class="stat-card products">
                         <div class="stat-header">
                             <span class="stat-title">Sản phẩm</span>
-                            <span class="stat-icon">📦</span>
+                            <span class="stat-icon">🏷️</span>
                         </div>
                         <div class="stat-value">${products.length}</div>
                         <div class="stat-change positive">Tổng ${products.length} mặt hàng</div>
@@ -1723,7 +1783,7 @@ class HamobileBanhang {
                     <div class="stat-card info">
                         <div class="stat-header">
                             <span class="stat-title">Lợi nhuận hôm nay</span>
-                            <span class="stat-icon">💎</span>
+                            <span class="stat-icon">💹</span>
                         </div>
                         <div class="stat-value">${todayProfit.toLocaleString('vi-VN')} VNĐ</div>
                         <div class="stat-change ${todayProfit >= yesterdayProfit ? 'positive' : 'negative'}">${yesterdayProfit > 0 ? (todayProfit >= yesterdayProfit ? '↗' : '↘') + ' ' + ((todayProfit - yesterdayProfit) / yesterdayProfit * 100).toFixed(1) + '% so với hôm qua' : (todayProfit > 0 ? 'Có lợi nhuận' : 'Chưa có')}</div>
@@ -1733,25 +1793,25 @@ class HamobileBanhang {
                     <h2 class="section-title">Thao tác nhanh</h2>
                     <div class="action-grid">
                         <div class="action-button" onclick="app.showCreateOrderForm()">
-                            <div class="action-icon">📝</div>
+                            <div class="action-icon">✍️</div>
                             <div class="action-title">Tạo đơn bán hàng</div>
                             <div class="action-desc">Form mới với chiết khấu từng sản phẩm</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddCustomerForm()">
-                            <div class="action-icon">👤</div>
+                            <div class="action-icon">🧑‍💼</div>
                             <div class="action-title">Thêm khách hàng</div>
                             <div class="action-desc">Thêm thông tin khách hàng mới</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddProductForm()">
-                            <div class="action-icon">📦</div>
+                            <div class="action-icon">🛒</div>
                             <div class="action-title">Thêm sản phẩm</div>
                             <div class="action-desc">Thêm sản phẩm mới vào kho</div>
                         </div>
                         
                         <div class="action-button" onclick="app.loadPage('reports')">
-                            <div class="action-icon">📊</div>
+                            <div class="action-icon">📈</div>
                             <div class="action-title">Xem báo cáo</div>
                             <div class="action-desc">Báo cáo doanh thu và bán hàng</div>
                         </div>
@@ -1760,19 +1820,20 @@ class HamobileBanhang {
                     </div>
                 </div>
                     </div>
-                <aside class="dashboard-sidebar" aria-label="Hoạt động gần đây">
-                <!-- Recent Activity -->
+                </div>
+                </div>
+                <aside class="dashboard-sidebar dashboard-sidebar--fixed" aria-label="Hoạt động gần đây">
+                <div class="dashboard-sidebar-scroll">
                 <div class="recent-activity">
                     <h2 class="section-title">Hoạt động gần đây 
-                        <button onclick="app.refreshActivities()" style="background: #059669; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;" title="Nhấn để cập nhật thời gian thực">🔄 REFRESH</button>
-                        <span style="font-size: 12px; color: #666; margin-left: 8px;">[${this.formatVietnameseTime()}]</span>
+                        <span id="dashboard-vn-clock" class="dashboard-vn-clock" aria-live="polite" aria-atomic="true">[${this.formatVietnameseTime()}]</span>
                     </h2>
-                    <div id="activities-container" class="dashboard-activities-scroll" data-timestamp="${Date.now()}">
+                    <div id="activities-container" data-timestamp="${Date.now()}">
                         ${this.getRecentActivities()}
                     </div>
                 </div>
-                </aside>
                 </div>
+                </aside>
             </div>
         `;
     }
@@ -4543,7 +4604,7 @@ class HamobileBanhang {
     getDebtsContent() {
         const customersWithActualDebt = this.getCustomersWithDebt();
         const totalActualDebt = customersWithActualDebt.reduce((sum, c) => sum + this.getActualDebtForCustomer(c), 0);
-        const todayStr = this.getVietnamTime().toISOString().split('T')[0];
+        const todayStr = this.getVietnamDateKey();
         const todayPayments = (this.demoData.debtPayments || []).filter(p => p.date === todayStr);
         const todayCollected = todayPayments.reduce((s, p) => s + (p.amount || 0), 0);
         const paymentNames = [...new Set(todayPayments.map(p => p.customerName))].slice(0, 3).join(', ');
@@ -4718,7 +4779,7 @@ class HamobileBanhang {
     setDebtsMobilePeriod(period) {
         this.debtsMobilePeriod = period || 'all';
         if (this.debtsMobilePeriod === 'custom') {
-            const t = this.getVietnamTime().toISOString().split('T')[0];
+            const t = this.getVietnamDateKey();
             if (!this.debtsMobileCustomFrom) this.debtsMobileCustomFrom = t;
             if (!this.debtsMobileCustomTo) this.debtsMobileCustomTo = t;
         }
@@ -6496,8 +6557,8 @@ class HamobileBanhang {
                                 <label style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-secondary);">Lựa chọn nhanh:</label>
                                 <select id="filter-quick-select" onchange="app.applyQuickFilter(this.value)"
                                         style="width: 100%; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                    <option value="" ${!(fromDate === toDate && fromDate === this.getVietnamTime().toISOString().split('T')[0]) ? 'selected' : ''}>Tùy chỉnh</option>
-                                    <option value="today" ${fromDate === toDate && fromDate === this.getVietnamTime().toISOString().split('T')[0] ? 'selected' : ''}>Hôm nay</option>
+                                    <option value="" ${!(fromDate === toDate && fromDate === this.getVietnamDateKey()) ? 'selected' : ''}>Tùy chỉnh</option>
+                                    <option value="today" ${fromDate === toDate && fromDate === this.getVietnamDateKey() ? 'selected' : ''}>Hôm nay</option>
                                     <option value="yesterday">Hôm qua</option>
                                     <option value="this-week">Tuần này</option>
                                     <option value="last-week">Tuần trước</option>
@@ -6703,23 +6764,17 @@ class HamobileBanhang {
         
         const recentOrders = orders.slice(0, 3);
         
-        recentOrders.forEach((order, index) => {
+        recentOrders.forEach((order) => {
             if (!order || !order.date) return;
-            const orderTime = order.time || '00:00';
-            let orderDateTime = new Date(order.date + 'T' + orderTime + ':00');
-            if (isNaN(orderDateTime.getTime())) orderDateTime = new Date(order.date);
-            if (isNaN(orderDateTime.getTime())) orderDateTime = now;
-            
-            const todayStr = now.toISOString().split('T')[0];
-            let activityTime;
-            if (order.date === todayStr) {
-                activityTime = orderDateTime;
-            } else {
-                activityTime = new Date(now.getTime() - (30 + index * 45) * 60 * 1000);
+            let orderDateTime = this.parseOrderInstantVN(order.date, order.time);
+            if (!orderDateTime) {
+                orderDateTime = new Date(`${order.date}T12:00:00+07:00`);
             }
+            if (isNaN(orderDateTime.getTime())) orderDateTime = now;
+            const activityTime = orderDateTime;
             
             const icon = order.paymentStatus === 'Đã thanh toán' ? 'success' : 'info';
-            const emoji = order.paymentStatus === 'Đã thanh toán' ? '💰' : '📋';
+            const emoji = order.paymentStatus === 'Đã thanh toán' ? '💵' : '🧾';
             const totalStr = (Number(order.total) || 0).toLocaleString('vi-VN');
             const title = order.paymentStatus === 'Đã thanh toán' ? 
                 `Đơn hàng ${order.id || ''} đã hoàn thành` : 
@@ -6738,7 +6793,7 @@ class HamobileBanhang {
             const timeAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 giờ trước THẬT
             activities.push({
                 icon: 'warning',
-                emoji: '⚠️',
+                emoji: '🔔',
                 title: 'Sản phẩm sắp hết hàng',
                 desc: `${product.name} chỉ còn ${product.stock} sản phẩm trong kho`,
                 time: timeAgo
@@ -6752,7 +6807,7 @@ class HamobileBanhang {
             const timeAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
             activities.push({
                 icon: 'warning',
-                emoji: '💳',
+                emoji: '🏦',
                 title: 'Nhắc nợ khách hàng',
                 desc: `${customer.name || ''} có công nợ ${(customer.debt || 0).toLocaleString('vi-VN')} VNĐ`,
                 time: timeAgo
@@ -8629,7 +8684,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `khach_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `khach_hang_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -9731,7 +9786,7 @@ class HamobileBanhang {
         
         const newSale = {
             id: 'DH' + String(this.demoData.sales.length + 1).padStart(3, '0'),
-            date: this.getVietnamTime().toISOString().split('T')[0],
+            date: this.getVietnamDateKey(),
             customer: customerInfo.name,
             customOrderPhone: customerInfo.phone,
             customerAddress: customerInfo.address,
@@ -12291,7 +12346,7 @@ class HamobileBanhang {
         );
         if (customer && amount > 0) {
             const oldDebt = this.getActualDebtForCustomer(customer);
-            const todayStr = this.getVietnamTime().toISOString().split('T')[0];
+            const todayStr = this.getVietnamDateKey();
             (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
             
             let remaining = amount;
@@ -13366,7 +13421,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `mua_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `mua_hang_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13401,7 +13456,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `nha_cung_cap_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `nha_cung_cap_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13437,7 +13492,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `san_pham_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `san_pham_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13484,7 +13539,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `danh_muc_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `danh_muc_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -15515,7 +15570,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `don_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `don_hang_${this.getVietnamDateKey()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -17274,12 +17329,12 @@ class HamobileBanhang {
 
     getDefaultFromDate() {
         // Mặc định là hôm nay (giờ Việt Nam)
-        return this.getVietnamTime().toISOString().split('T')[0];
+        return this.getVietnamDateKey();
     }
 
     getDefaultToDate() {
         // Mặc định là hôm nay (giờ Việt Nam)
-        return this.getVietnamTime().toISOString().split('T')[0];
+        return this.getVietnamDateKey();
     }
 
     formatDateForDisplay(dateString) {
@@ -18359,7 +18414,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            const filename = `ton_kho_${inventoryFilter}_${this.getVietnamTime().toISOString().split('T')[0]}.csv`;
+            const filename = `ton_kho_${inventoryFilter}_${this.getVietnamDateKey()}.csv`;
             link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
@@ -18545,7 +18600,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            const filename = `cong_no_${debtFilter}_${this.getVietnamTime().toISOString().split('T')[0]}.csv`;
+            const filename = `cong_no_${debtFilter}_${this.getVietnamDateKey()}.csv`;
             link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
