@@ -1562,11 +1562,12 @@ class HamobileBanhang {
         document.getElementById('page-title').textContent = titles.title;
         document.getElementById('page-subtitle').textContent = titles.subtitle;
         const mainEl = document.getElementById('main-content');
-        mainEl.classList.remove('page-sales', 'page-customers', 'page-debts', 'page-orders');
+        mainEl.classList.remove('page-sales', 'page-customers', 'page-debts', 'page-orders', 'page-dashboard');
         if (pageName === 'sales') mainEl.classList.add('page-sales');
         if (pageName === 'customers') mainEl.classList.add('page-customers');
         if (pageName === 'debts') mainEl.classList.add('page-debts');
         if (pageName === 'orders') mainEl.classList.add('page-orders');
+        if (pageName === 'dashboard') mainEl.classList.add('page-dashboard');
         mainEl.innerHTML = content;
         if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
@@ -1684,6 +1685,8 @@ class HamobileBanhang {
         const orderChange = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
         return `
             <div class="fade-in">
+                <div class="dashboard-layout">
+                    <div class="dashboard-main">
                 <div class="stats-grid">
                     <div class="stat-card revenue">
                         <div class="stat-header">
@@ -1756,16 +1759,19 @@ class HamobileBanhang {
 
                     </div>
                 </div>
-                
+                    </div>
+                <aside class="dashboard-sidebar" aria-label="Hoạt động gần đây">
                 <!-- Recent Activity -->
                 <div class="recent-activity">
                     <h2 class="section-title">Hoạt động gần đây 
                         <button onclick="app.refreshActivities()" style="background: #059669; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;" title="Nhấn để cập nhật thời gian thực">🔄 REFRESH</button>
                         <span style="font-size: 12px; color: #666; margin-left: 8px;">[${this.formatVietnameseTime()}]</span>
                     </h2>
-                    <div id="activities-container" data-timestamp="${Date.now()}">
+                    <div id="activities-container" class="dashboard-activities-scroll" data-timestamp="${Date.now()}">
                         ${this.getRecentActivities()}
                     </div>
+                </div>
+                </aside>
                 </div>
             </div>
         `;

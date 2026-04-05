@@ -2428,3 +2428,56 @@ select.edit-order-inp{
   }
 }
 
+/* --- Trang Tổng quan (dashboard): 2 cột giống Tailwind grid-cols-1 lg:grid-cols-3 gap-4; main lg:col-span-2; sidebar lg:col-span-1 --- */
+#main-content.page-dashboard{
+  overflow-x:hidden;
+  overflow-y:visible;
+}
+
+#main-content .dashboard-layout{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:1rem;
+  align-items:start;
+  width:100%;
+  max-width:100%;
+}
+
+@media (min-width:1024px){
+  #main-content .dashboard-layout{
+    grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+  }
+
+  #main-content .dashboard-sidebar{
+    position:-webkit-sticky;
+    position:sticky;
+    top:1rem;
+    align-self:start;
+    min-height:0;
+    max-height:calc(100vh - 2rem);
+  }
+
+  #main-content .dashboard-sidebar .recent-activity{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    max-height:calc(100vh - 2rem);
+    overflow:hidden;
+    box-sizing:border-box;
+  }
+
+  #main-content .dashboard-sidebar .recent-activity .section-title{
+    flex-shrink:0;
+  }
+
+  #main-content #activities-container.dashboard-activities-scroll{
+    flex:1 1 auto;
+    min-height:0;
+    max-height:calc(100vh - 12rem);
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+}
+
