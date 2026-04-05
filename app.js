@@ -588,6 +588,11 @@ class HamobileBanhang {
         this.inventoryStatusFilter = 'all'; // 'all' | 'low' | 'warning' | 'good'
         this.inventoryPage = 1;
         this.inventoryPerPage = 50;
+        /** Virtual scroll (virtual-scroll-grid.min.js) — hủy khi đổi trang */
+        this._vsgProductsTable = null;
+        this._vsgProductsMobile = null;
+        this._vsgInventoryDesktop = null;
+        this._vsgInventoryMobile = null;
         this.demoData = this.generateDemoData(); // Tạm dùng demo cho đến khi load xong
         this._ready = false;
         this._saveDebounceTimer = null;
@@ -1840,7 +1845,22 @@ class HamobileBanhang {
         if (pageName === 'debts') mainEl.classList.add('page-debts');
         if (pageName === 'orders') mainEl.classList.add('page-orders');
         if (pageName === 'dashboard') mainEl.classList.add('page-dashboard');
+        this._tearDownVirtualScrollGrids();
         mainEl.innerHTML = content;
+        if (pageName === 'products') {
+            try {
+                this.refreshProductsTableBody();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        if (pageName === 'inventory') {
+            try {
+                this.refreshInventoryProductList();
+            } catch (e) {
+                console.error(e);
+            }
+        }
         if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
         if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
@@ -1887,6 +1907,18 @@ class HamobileBanhang {
             // FAB mobile removed; no DOM reparenting needed.
         }, 500);
         }
+
+    _tearDownVirtualScrollGrids() {
+        ['_vsgProductsTable', '_vsgProductsMobile', '_vsgInventoryDesktop', '_vsgInventoryMobile'].forEach((k) => {
+            const v = this[k];
+            if (v && typeof v.destroy === 'function') {
+                try {
+                    v.destroy();
+                } catch (_) {}
+            }
+            this[k] = null;
+        });
+    }
 
     // FAB mobile đã bỏ; giữ hàm no-op để tương thích các call cũ.
     ensureProductsFabMobile() {
@@ -2283,7 +2315,6 @@ class HamobileBanhang {
         if (this.productsPage === undefined) this.productsPage = 1;
         if (this.productsPerPage === undefined) this.productsPerPage = 50;
         if (!Array.isArray(this.demoData.products)) this.demoData.products = [];
-        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const q = (this.productsSearchQuery || '').trim().toLowerCase();
         const catFilter = (this.productsCategoryFilter || '').trim();
         let filtered = this.demoData.products;
@@ -2291,16 +2322,9 @@ class HamobileBanhang {
         if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
         if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
         else filtered = [...filtered].reverse();
-        const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
         const totalFiltered = filtered.length;
-        const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
-        let page = Math.max(1, Math.min(this.productsPage || 1, totalPages));
-        this.productsPage = page;
-        const startIdx = (page - 1) * perPage;
-        const paginated = filtered.slice(startIdx, startIdx + perPage);
-        const selectAllChecked = paginated.length > 0 && paginated.every(p => this.selectedProductIds.has(p.id));
+        const selectAllChecked = filtered.length > 0 && filtered.every(p => this.selectedProductIds.has(p.id));
         const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
-        const rows = this.getProductTableRowsHtml(paginated);
 
         const selectedCount = this.selectedProductIds.size;
         const selectionBar = `
@@ -2370,10 +2394,11 @@ class HamobileBanhang {
                     </div>
                     ${selectionBar}
                     <div class="products-table-container" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
-                        <div id="products-mobile-list" class="products-mobile-list">${this.getProductsMobileListHtml(paginated)}</div>
+                        <div id="products-mobile-list" class="products-mobile-list" style="max-height: min(62vh, 560px); overflow: auto; -webkit-overflow-scrolling: touch;"></div>
+                        <div id="products-table-scroll" style="max-height: min(65vh, 640px); overflow: auto;">
                         <table class="products-table products-table-desktop" style="width: 100%; border-collapse: collapse;">
-                            <thead>
-                                <tr style="background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">
+                            <thead style="position: sticky; top: 0; z-index: 2; background: #f8fafc;">
+                                <tr style="font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">
                                     <th class="product-th-check" style="padding: 12px; text-align: left; width: 48px;"><input type="checkbox" id="products-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleProductsSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả"></th>
                                     <th class="product-th-name" style="padding: 12px; text-align: left;">Tên hàng</th>
                                     <th class="product-th-category" style="padding: 12px; text-align: left;">Danh mục</th>
@@ -2384,27 +2409,12 @@ class HamobileBanhang {
                                     <th class="product-th-actions" style="padding: 12px; text-align: center; width: 190px;">Thao tác</th>
                                 </tr>
                             </thead>
-                            <tbody id="products-table-tbody">
-                                ${rows}
-                            </tbody>
+                            <tbody id="products-table-tbody"></tbody>
                         </table>
+                        </div>
                         <div id="products-table-footer" class="products-table-footer">
                             <div class="products-pagination">
-                                <span class="products-pagination-label">Hiển thị</span>
-                                <select id="products-per-page" onchange="app.setProductsPerPage(parseInt(this.value,10))" class="products-per-page-select">
-                                    <option value="10" ${perPage === 10 ? 'selected' : ''}>10 dòng</option>
-                                    <option value="20" ${perPage === 20 ? 'selected' : ''}>20 dòng</option>
-                                    <option value="50" ${perPage === 50 ? 'selected' : ''}>50 dòng</option>
-                                    <option value="100" ${perPage === 100 ? 'selected' : ''}>100 dòng</option>
-                                </select>
-                                <div class="products-pagination-nav">
-                                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(1)" ${page <= 1 ? 'disabled' : ''} title="Trang đầu">≪</button>
-                                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page-1})" ${page <= 1 ? 'disabled' : ''} title="Trang trước">‹</button>
-                                    <span class="products-pagination-current">${page}</span>
-                                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page+1})" ${page >= totalPages ? 'disabled' : ''} title="Trang sau">›</button>
-                                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${totalPages})" ${page >= totalPages ? 'disabled' : ''} title="Trang cuối">≫</button>
-                                </div>
-                                <span class="products-pagination-info">${totalFiltered > 0 ? `${startIdx + 1} - ${Math.min(startIdx + perPage, totalFiltered)} trong ${totalFiltered} hàng hóa` : '0 hàng hóa'}</span>
+                                <span class="products-pagination-info">${totalFiltered} hàng hóa${q || catFilter ? ' (đã lọc)' : ''}</span>
                             </div>
                             ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}
                         </div>
@@ -2524,7 +2534,7 @@ class HamobileBanhang {
                         </div>`;
     }
 
-    getInventoryDesktopRowsHtml(products) {
+    getInventoryDesktopRowsHtml(products, baseIndex = 0) {
         if (!products || products.length === 0) {
             return '<div style="padding: 24px; text-align: center; color: #6b7280; font-size: 14px;">Không có sản phẩm phù hợp bộ lọc.</div>';
         }
@@ -2550,7 +2560,7 @@ class HamobileBanhang {
                 const statusIcon =
                     stockStatus === 'out' ? '🚫' : stockStatus === 'low' ? '⚠️' : stockStatus === 'warning' ? '⚡' : '✅';
                 return `
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; border-bottom: 1px solid #f1f5f9; align-items: center; ${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px; gap: 16px; padding: 16px; border-bottom: 1px solid #f1f5f9; align-items: center; ${(baseIndex + index) % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
                                     <div>
                                         <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${escapeHtml(product.name)}</div>
                                         <div style="font-size: 12px; color: #6b7280;">${escapeHtml(product.id)} • ${escapeHtml(product.category)}</div>
@@ -2643,7 +2653,7 @@ class HamobileBanhang {
         pushCurrent();
         return lines.map((line) => escapeHtml(line)).join('<br>');
     }
-    getProductTableRowsHtml(filtered) {
+    getProductTableRowsHtml(filtered, baseIndex = 0) {
         if (!filtered || filtered.length === 0) {
             if (!(this.demoData.products && this.demoData.products.length)) {
                 return '<tr><td colspan="8" style="padding: 32px; text-align: center; color: #6b7280;"><div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chưa có sản phẩm</div><div style="font-size: 14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div></td></tr>';
@@ -2667,7 +2677,7 @@ class HamobileBanhang {
                 : '';
             const imeiMore = isImei && (product.imeis || []).length > 2 ? ` +${(product.imeis || []).length - 2}` : '';
             const wrappedProductName = this.wrapProductNameForTable(product.name, 17);
-            return `<tr class="product-row" style="${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+            return `<tr class="product-row" style="${(baseIndex + index) % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
                     <td class="product-cell-check" style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" ${checked ? 'checked' : ''} onchange="app.toggleProductSelect(this.getAttribute('data-product-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
                     <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9; max-width: 260px;"><div class="product-name" style="font-weight: 600; color: #1f2937; line-height: 1.35;">${wrappedProductName}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div>${imeiPreview ? `<div class="product-imei" style="font-size: 11px; color: #7f1d1d; font-weight: 700; margin-top: 3px; line-height: 1.3;" title="${escapeHtml((product.imeis || []).join(', '))}">IMEI: ${escapeHtml(imeiPreview)}${imeiMore}</div>` : ''}</td>
                     <td class="product-cell-category" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #6b7280;">${escapeHtml(product.category || '-')}</td>
@@ -2932,9 +2942,23 @@ class HamobileBanhang {
         const label = field === 'price' ? 'Giá bán' : 'Giá nhập';
         this.showNotification(`Đã cập nhật ${label} ${product.name}: ${(oldVal || 0).toLocaleString('vi-VN')} → ${num.toLocaleString('vi-VN')} VNĐ`, 'success');
     }
+    getProductsFilteredSorted() {
+        const input = document.getElementById('products-search-input');
+        const catSelect = document.getElementById('products-category-filter');
+        if (input) this.productsSearchQuery = input.value.trim();
+        if (catSelect) this.productsCategoryFilter = (catSelect.value || '').trim();
+        const q = (this.productsSearchQuery || '').trim().toLowerCase();
+        const catFilter = (this.productsCategoryFilter || '').trim();
+        let filtered = this.demoData.products || [];
+        if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
+        if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
+        if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
+        else filtered = [...filtered].reverse();
+        return filtered;
+    }
+
     setProductsSearch(q) {
         this.productsSearchQuery = (q || '').trim();
-        this.productsPage = 1;
         if (this._productsSearchTimeout) clearTimeout(this._productsSearchTimeout);
         this._productsSearchTimeout = setTimeout(() => {
             this._productsSearchTimeout = null;
@@ -2943,88 +2967,95 @@ class HamobileBanhang {
     }
     setProductsCategoryFilter(val) {
         this.productsCategoryFilter = (val || '').trim();
-        this.productsPage = 1;
         this.refreshProductsTableBody();
     }
+    _scrollProductsVirtualRootsToTop() {
+        const t = document.getElementById('products-table-scroll');
+        const m = document.getElementById('products-mobile-list');
+        if (t) t.scrollTop = 0;
+        if (m) m.scrollTop = 0;
+    }
     setProductsPage(page) {
-        const p = Math.max(1, parseInt(page, 10) || 1);
-        if (this.productsPage !== p) {
-            this.productsPage = p;
-            this.refreshProductsTableBody();
-        }
+        void page;
+        this._scrollProductsVirtualRootsToTop();
     }
     setProductsPerPage(n) {
-        const v = Math.max(10, Math.min(200, parseInt(n, 10) || 50));
-        if (this.productsPerPage !== v) {
-            this.productsPerPage = v;
-            this.productsPage = 1;
-            this.refreshProductsTableBody();
-        }
+        void n;
+        this._scrollProductsVirtualRootsToTop();
     }
     refreshProductsTableBody() {
-        const input = document.getElementById('products-search-input');
-        const catSelect = document.getElementById('products-category-filter');
-        if (input) this.productsSearchQuery = input.value.trim();
-        if (catSelect) this.productsCategoryFilter = (catSelect.value || '').trim();
+        if (this.currentPage !== 'products') return;
+        const filtered = this.getProductsFilteredSorted();
+        const totalFiltered = filtered.length;
+        const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
         const q = (this.productsSearchQuery || '').trim().toLowerCase();
         const catFilter = (this.productsCategoryFilter || '').trim();
-        let filtered = this.demoData.products;
-        if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
-        if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-        if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
-        else filtered = [...filtered].reverse();
-        const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
-        const totalFiltered = filtered.length;
-        const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
-        let page = Math.max(1, Math.min(this.productsPage || 1, totalPages));
-        this.productsPage = page;
-        const startIdx = (page - 1) * perPage;
-        const paginated = filtered.slice(startIdx, startIdx + perPage);
-        const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
         const tbody = document.getElementById('products-table-tbody');
         const footer = document.getElementById('products-table-footer');
-        if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(paginated);
+        const scrollDesk = document.getElementById('products-table-scroll');
         const mobileList = document.getElementById('products-mobile-list');
-        if (mobileList) mobileList.innerHTML = this.getProductsMobileListHtml(paginated);
+        if (this._vsgProductsTable) {
+            try {
+                this._vsgProductsTable.destroy();
+            } catch (_) {}
+            this._vsgProductsTable = null;
+        }
+        if (this._vsgProductsMobile) {
+            try {
+                this._vsgProductsMobile.destroy();
+            } catch (_) {}
+            this._vsgProductsMobile = null;
+        }
         if (footer) {
             footer.innerHTML = `<div class="products-pagination">
-                <span class="products-pagination-label">Hiển thị</span>
-                <select id="products-per-page" onchange="app.setProductsPerPage(parseInt(this.value,10))" class="products-per-page-select">
-                    <option value="10" ${perPage === 10 ? 'selected' : ''}>10 dòng</option>
-                    <option value="20" ${perPage === 20 ? 'selected' : ''}>20 dòng</option>
-                    <option value="50" ${perPage === 50 ? 'selected' : ''}>50 dòng</option>
-                    <option value="100" ${perPage === 100 ? 'selected' : ''}>100 dòng</option>
-                </select>
-                <div class="products-pagination-nav">
-                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(1)" ${page <= 1 ? 'disabled' : ''} title="Trang đầu">≪</button>
-                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page-1})" ${page <= 1 ? 'disabled' : ''} title="Trang trước">‹</button>
-                    <span class="products-pagination-current">${page}</span>
-                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page+1})" ${page >= totalPages ? 'disabled' : ''} title="Trang sau">›</button>
-                    <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${totalPages})" ${page >= totalPages ? 'disabled' : ''} title="Trang cuối">≫</button>
-                </div>
-                <span class="products-pagination-info">${totalFiltered > 0 ? `${startIdx + 1} - ${Math.min(startIdx + perPage, totalFiltered)} trong ${totalFiltered} hàng hóa` : '0 hàng hóa'}</span>
+                <span class="products-pagination-info">${totalFiltered} hàng hóa${q || catFilter ? ' (đã lọc)' : ''}</span>
             </div>
             ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}`;
+        }
+        const VSG = typeof window !== 'undefined' ? window.VirtualScrollGrid : null;
+        const PRODUCT_ROW_H = 92;
+        const PRODUCT_MOBILE_H = 76;
+        if (!VSG || !VSG.mountTableBody || !scrollDesk || !tbody) {
+            if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(filtered);
+            if (mobileList) mobileList.innerHTML = this.getProductsMobileListHtml(filtered);
+        } else {
+            this._vsgProductsTable = VSG.mountTableBody({
+                scrollEl: scrollDesk,
+                tbody,
+                itemHeight: PRODUCT_ROW_H,
+                overscan: 6,
+                colspan: 8,
+                renderRows: (start, end) => {
+                    if (totalFiltered === 0) return this.getProductTableRowsHtml([]);
+                    return this.getProductTableRowsHtml(filtered.slice(start, end), start);
+                },
+            });
+            this._vsgProductsTable.update(totalFiltered);
+            if (mobileList && VSG.mountDivList) {
+                this._vsgProductsMobile = VSG.mountDivList({
+                    scrollEl: mobileList,
+                    itemHeight: PRODUCT_MOBILE_H,
+                    overscan: 8,
+                    renderItems: (start, end) => {
+                        if (totalFiltered === 0) return this.getProductsMobileListHtml([]);
+                        return this.getProductsMobileListHtml(filtered.slice(start, end));
+                    },
+                });
+                this._vsgProductsMobile.update(totalFiltered);
+            }
         }
         this.updateProductsSelectionUI();
         if (this.currentPage === 'products') this.ensureProductsFabMobile();
     }
     toggleProductsSelectAll(checked) {
-        const q = (this.productsSearchQuery || '').trim().toLowerCase();
-        const catFilter = (this.productsCategoryFilter || '').trim();
-        let filtered = this.demoData.products;
-        if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
-        if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-        if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
-        else filtered = [...filtered].reverse();
-        const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
-        const page = Math.max(1, this.productsPage || 1);
-        const startIdx = (page - 1) * perPage;
-        const paginated = filtered.slice(startIdx, startIdx + perPage);
-        paginated.forEach(p => {
-            if (checked) this.selectedProductIds.add(p.id); else this.selectedProductIds.delete(p.id);
+        const filtered = this.getProductsFilteredSorted();
+        filtered.forEach((p) => {
+            if (checked) this.selectedProductIds.add(p.id);
+            else this.selectedProductIds.delete(p.id);
         });
         this.updateProductsSelectionUI();
+        if (this._vsgProductsTable) this._vsgProductsTable.refresh();
+        if (this._vsgProductsMobile) this._vsgProductsMobile.refresh();
     }
     toggleProductSelect(id, checked) {
         if (checked) this.selectedProductIds.add(id); else this.selectedProductIds.delete(id);
@@ -3038,19 +3069,9 @@ class HamobileBanhang {
         if (elCount) elCount.textContent = n > 0 ? 'Đã chọn ' + n : '';
         if (elBar) elBar.style.display = n > 0 ? 'flex' : 'none';
         if (elBarCount) elBarCount.textContent = 'Đã chọn ' + n;
-        const q = (this.productsSearchQuery || '').trim().toLowerCase();
-        const catFilter = (this.productsCategoryFilter || '').trim();
-        let filtered = this.demoData.products;
-        if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
-        if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-        if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
-        else filtered = [...filtered].reverse();
-        const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
-        const page = Math.max(1, this.productsPage || 1);
-        const startIdx = (page - 1) * perPage;
-        const paginated = filtered.slice(startIdx, startIdx + perPage);
+        const filtered = this.getProductsFilteredSorted();
         const selectAll = document.getElementById('products-select-all');
-        if (selectAll) selectAll.checked = paginated.length > 0 && paginated.every(p => this.selectedProductIds.has(p.id));
+        if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every((p) => this.selectedProductIds.has(p.id));
         document.querySelectorAll('input[data-product-id]').forEach(cb => {
             const id = cb.getAttribute('data-product-id');
             cb.checked = this.selectedProductIds.has(id);
@@ -3310,8 +3331,8 @@ class HamobileBanhang {
             const min = this.getInventoryProductMinStock(p);
             return min > 0 && this.getInventoryProductStock(p) > min * 3;
         });
-        const invPag = this.getInventoryListPagination();
-        const inventoryPageSlice = invPag.pageSlice;
+        const invFiltered = this.getFilteredInventoryProducts();
+        const invListTotal = invFiltered.length;
         const invSel = this.inventoryStatusFilter || 'all';
 
         return `
@@ -3435,11 +3456,16 @@ class HamobileBanhang {
                     </div>
                     
                     <div class="inventory-products-panel" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <div id="inventory-mobile-list" class="inventory-mobile-list products-mobile-list">${this.getInventoryMobileListHtml(inventoryPageSlice)}</div>
+                        <div id="inventory-mobile-list" class="inventory-mobile-list products-mobile-list" style="max-height: min(58vh, 520px); overflow: auto; -webkit-overflow-scrolling: touch;"></div>
                         <div class="inventory-desktop-only">
-                        <div id="inventory-desktop-table-inner">${this.getInventoryDesktopTableInnerHtml(inventoryPageSlice)}</div>
+                        <div id="inventory-desktop-table-inner">
+                        ${this.getInventoryDesktopHeaderHtml()}
+                        <div id="inventory-desktop-rows-scroll" style="max-height: min(58vh, 520px); overflow: auto;"></div>
                         </div>
-                        <div id="inventory-list-footer" class="products-table-footer" style="border-top: 1px solid #e5e7eb;">${this.getInventoryPaginationFooterHtml(invPag)}</div>
+                        </div>
+                        <div id="inventory-list-footer" class="products-table-footer" style="border-top: 1px solid #e5e7eb;">
+                            <div class="products-pagination"><span class="products-pagination-info">${invListTotal} sản phẩm (đã lọc)</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -13985,41 +14011,83 @@ class HamobileBanhang {
 
     refreshInventoryProductList() {
         if (this.currentPage !== 'inventory') return;
-        const invPag = this.getInventoryListPagination();
-        const mobile = document.getElementById('inventory-mobile-list');
-        if (mobile) mobile.innerHTML = this.getInventoryMobileListHtml(invPag.pageSlice);
-        const desk = document.getElementById('inventory-desktop-table-inner');
-        if (desk) desk.innerHTML = this.getInventoryDesktopTableInnerHtml(invPag.pageSlice);
+        const filtered = this.getFilteredInventoryProducts();
+        const n = filtered.length;
         const foot = document.getElementById('inventory-list-footer');
-        if (foot) foot.innerHTML = this.getInventoryPaginationFooterHtml(invPag);
+        if (this._vsgInventoryDesktop) {
+            try {
+                this._vsgInventoryDesktop.destroy();
+            } catch (_) {}
+            this._vsgInventoryDesktop = null;
+        }
+        if (this._vsgInventoryMobile) {
+            try {
+                this._vsgInventoryMobile.destroy();
+            } catch (_) {}
+            this._vsgInventoryMobile = null;
+        }
+        const mobile = document.getElementById('inventory-mobile-list');
+        const deskScroll = document.getElementById('inventory-desktop-rows-scroll');
+        if (foot) {
+            foot.innerHTML = `<div class="products-pagination"><span class="products-pagination-info">${n} sản phẩm (đã lọc)</span></div>`;
+        }
+        const VSG = typeof window !== 'undefined' ? window.VirtualScrollGrid : null;
+        if (!VSG || !VSG.mountDivList) {
+            if (mobile) mobile.innerHTML = this.getInventoryMobileListHtml(filtered);
+            if (deskScroll) deskScroll.innerHTML = this.getInventoryDesktopRowsHtml(filtered);
+        } else {
+            const INV_ROW_DESK = 88;
+            const INV_ROW_MOB = 64;
+            if (mobile) {
+                this._vsgInventoryMobile = VSG.mountDivList({
+                    scrollEl: mobile,
+                    itemHeight: INV_ROW_MOB,
+                    overscan: 8,
+                    renderItems: (start, end) => {
+                        if (n === 0) return this.getInventoryMobileListHtml([]);
+                        return this.getInventoryMobileListHtml(filtered.slice(start, end));
+                    },
+                });
+                this._vsgInventoryMobile.update(n);
+            }
+            if (deskScroll) {
+                this._vsgInventoryDesktop = VSG.mountDivList({
+                    scrollEl: deskScroll,
+                    itemHeight: INV_ROW_DESK,
+                    overscan: 6,
+                    renderItems: (start, end) => {
+                        if (n === 0) return this.getInventoryDesktopRowsHtml([]);
+                        return this.getInventoryDesktopRowsHtml(filtered.slice(start, end), start);
+                    },
+                });
+                this._vsgInventoryDesktop.update(n);
+            }
+        }
         document.querySelectorAll('.inventory-filter-chips .inventory-filter-chip').forEach((el) => {
             const f = el.getAttribute('data-filter') || 'all';
             el.classList.toggle('inventory-filter-chip--on', (this.inventoryStatusFilter || 'all') === f);
         });
     }
 
+    _scrollInventoryVirtualRootsToTop() {
+        const m = document.getElementById('inventory-mobile-list');
+        const d = document.getElementById('inventory-desktop-rows-scroll');
+        if (m) m.scrollTop = 0;
+        if (d) d.scrollTop = 0;
+    }
+
     setInventoryPage(page) {
-        const p = Math.max(1, parseInt(page, 10) || 1);
-        this.inventoryPage = p;
-        if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
-            this.refreshInventoryProductList();
-        }
+        void page;
+        this._scrollInventoryVirtualRootsToTop();
     }
 
     setInventoryPerPage(n) {
-        const allowed = [10, 20, 50, 100];
-        let v = parseInt(n, 10);
-        if (!allowed.includes(v)) v = 50;
-        this.inventoryPerPage = v;
-        this.inventoryPage = 1;
-        if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
-            this.refreshInventoryProductList();
-        }
+        void n;
+        this._scrollInventoryVirtualRootsToTop();
     }
 
     setInventoryStatusFilter(filter) {
         this.inventoryStatusFilter = filter || 'all';
-        this.inventoryPage = 1;
         if (this.currentPage === 'inventory' && document.getElementById('inventory-mobile-list')) {
             this.refreshInventoryProductList();
             return;
