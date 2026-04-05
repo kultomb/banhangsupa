@@ -2192,25 +2192,21 @@ class HamobileBanhang {
                         <div class="action-button" onclick="app.showCreateOrderForm()">
                             <div class="action-icon">✍️</div>
                             <div class="action-title">Tạo đơn bán hàng</div>
-                            <div class="action-desc">Form mới với chiết khấu từng sản phẩm</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddCustomerForm()">
                             <div class="action-icon">🧑‍💼</div>
                             <div class="action-title">Thêm khách hàng</div>
-                            <div class="action-desc">Thêm thông tin khách hàng mới</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddProductForm()">
                             <div class="action-icon">🛒</div>
                             <div class="action-title">Thêm sản phẩm</div>
-                            <div class="action-desc">Thêm sản phẩm mới vào kho</div>
                         </div>
                         
                         <div class="action-button" onclick="app.loadPage('reports')">
                             <div class="action-icon">📈</div>
                             <div class="action-title">Xem báo cáo</div>
-                            <div class="action-desc">Báo cáo doanh thu và bán hàng</div>
                         </div>
                         
 
@@ -2496,10 +2492,10 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"></div>
+                    <div class="products-mobile-add-bar"><button type="button" class="products-mobile-add-product-btn" onclick="app.showAddProductForm()">➕ Thêm sản phẩm</button></div>
                     <div class="action-grid products-actions products-actions-desktop" style="grid-template-columns: repeat(3, 1fr);">
                         <div class="action-button" onclick="app.showAddProductForm()">
-                            <div class="action-icon">📦➕</div>
+                            <div class="action-icon">➕</div>
                             <div class="action-title">Thêm sản phẩm</div>
                         </div>
                         <div class="action-button" onclick="app.backupProductsToExcel()">
@@ -7247,43 +7243,36 @@ class HamobileBanhang {
                         <div class="action-button" onclick="app.exportSalesReport()">
                             <div class="action-icon">📊</div>
                             <div class="action-title">Báo cáo doanh thu</div>
-                            <div class="action-desc">Theo ngày, tuần, tháng</div>
                         </div>
                         
                         <div class="action-button" onclick="app.exportTopProductsReport()">
                             <div class="action-icon">💰</div>
                             <div class="action-title">Báo cáo bán hàng</div>
-                            <div class="action-desc">Top sản phẩm bán chạy</div>
                         </div>
                         
                         <div class="action-button" onclick="app.exportRepairsReport()">
                             <div class="action-icon">🔧</div>
                             <div class="action-title">Báo cáo sửa chữa</div>
-                            <div class="action-desc">Phiếu sửa chữa theo khoảng thời gian</div>
                         </div>
                         
                         <div class="action-button" onclick="app.exportInventoryReport()">
                             <div class="action-icon">📦</div>
                             <div class="action-title">Báo cáo tồn kho</div>
-                            <div class="action-desc">Giá trị và số lượng</div>
                         </div>
                         
                         <div class="action-button" onclick="app.exportDebtReport()">
                             <div class="action-icon">💳</div>
                             <div class="action-title">Báo cáo công nợ</div>
-                            <div class="action-desc">Theo khách hàng và nhà cung cấp</div>
                         </div>
                         
                         <div class="action-button" onclick="app.exportFinancialReport()">
                             <div class="action-icon">📋</div>
                             <div class="action-title">Báo cáo tài chính</div>
-                            <div class="action-desc">Theo chuẩn Việt Nam</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showTrendAnalysis()">
                             <div class="action-icon">📈</div>
                             <div class="action-title">Phân tích xu hướng</div>
-                            <div class="action-desc">Xem trên trang Tổng quan</div>
                         </div>
                     </div>
                     

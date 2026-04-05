@@ -17,9 +17,11 @@ const CONTENT_TYPES: Record<string, string> = {
 const ALLOWED_FILES = new Set([
   "index.html",
   "styles.css",
+  "responsive-md.css",
   "app.js",
   "app-errors.js",
   "firebase-config.js",
+  "virtual-scroll-grid.min.js",
 ]);
 
 function getContentType(fileName: string) {
