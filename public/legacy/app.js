@@ -689,6 +689,9 @@ class HamobileBanhang {
         this.ordersFilterCustomFrom = null;
         this.ordersFilterCustomTo = null;
         this.ordersMobileSortDesc = true;
+        this.taxDeclarationFormType = 's1a';
+        this.taxDeclarationQuarter = String(Math.floor((new Date().getMonth()) / 3) + 1);
+        this.taxDeclarationYear = String(new Date().getFullYear());
         this.debtsMobileMetric = 'debt';
         this.debtsMobileDebtTab = 'total';
         this.debtsMobilePeriod = 'all';
@@ -2072,6 +2075,7 @@ class HamobileBanhang {
             orders: { title: 'Quản lý Đơn hàng', subtitle: 'Danh sách và xử lý đơn hàng' },
             repairs: { title: 'Sửa chữa', subtitle: 'Quản lý phiếu sửa chữa và bảo hành' },
             reports: { title: 'Báo cáo', subtitle: 'Doanh thu và hoạt động kinh doanh' },
+            'tax-declaration': { title: 'Khai thuế', subtitle: 'Mẫu S1a/S2a theo quý - in A4' },
             settings: { title: 'Cài đặt', subtitle: 'Sao lưu và cấu hình hệ thống' },
             'company-info': { title: 'Thông tin Shop', subtitle: 'Logo và thông tin cửa hàng' }
         };
@@ -2103,6 +2107,8 @@ class HamobileBanhang {
                 return this.getRepairsContent();
             case 'reports':
                 return this.getReportsContent();
+            case 'tax-declaration':
+                return this.getTaxDeclarationContent();
             case 'settings':
                 return this.getSettingsContent();
             case 'company-info':
@@ -2113,6 +2119,7 @@ class HamobileBanhang {
     }
     
     getDashboardContent() {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const data = this.demoData || {};
         const orders = data.orders || [];
         const customers = data.customers || [];
@@ -2217,10 +2224,9 @@ class HamobileBanhang {
                 </div>
                 </div>
                 <aside class="dashboard-sidebar dashboard-sidebar--fixed" aria-label="Sidebar Tổng quan">
-                <div class="dashboard-sidebar-panel dashboard-sidebar-panel--tax" role="region" aria-label="Khai thuế và kế toán">
-                    <div class="dashboard-sidebar-tax-row">
-                        <a href="https://etaxvn.gdt.gov.vn/" target="_blank" rel="noopener noreferrer" class="dashboard-tax-btn">KHAI THUẾ</a>
-                        <a href="https://www.gdt.gov.vn/" target="_blank" rel="noopener noreferrer" class="dashboard-tax-btn dashboard-tax-btn--secondary">KẾ TOÁN</a>
+                <div class="dashboard-sidebar-panel dashboard-sidebar-panel--tax" role="region" aria-label="Khai thuế và kế toán" style="background: transparent; border: none; box-shadow: none; padding: 0; margin-bottom: 4px; ${isMobile ? 'display:none;' : ''}">
+                    <div class="dashboard-sidebar-tax-row" style="padding: 0;">
+                        <button type="button" onclick="app.loadPage('tax-declaration')" class="dashboard-tax-btn" style="width:100%; border:none; border-radius:14px; padding: 13px 16px; min-height: 52px; background: linear-gradient(135deg,#dc2626 0%,#f59e0b 55%,#facc15 100%); color:#fff; font-weight:800; letter-spacing:.2px; box-shadow:0 8px 20px rgba(220,38,38,.35), inset 0 1px 0 rgba(255,255,255,.3); text-transform:uppercase;">🔥 KHAI THUẾ</button>
                     </div>
                 </div>
                 <div class="dashboard-sidebar-scroll">
@@ -7302,6 +7308,404 @@ class HamobileBanhang {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        `;
+    }
+
+    getTaxDeclarationRecordsForQuarter(year, quarter) {
+        const q = Math.min(4, Math.max(1, Number(quarter) || 1));
+        const y = Number(year) || new Date().getFullYear();
+        const orders = this.demoData.orders || [];
+        const repairs = this.demoData.repairs || [];
+        const records = [];
+        orders.forEach((order) => {
+            const ymd = this.normalizeRecordDateToYmd(order && order.date);
+            if (!ymd) return;
+            const dt = new Date(`${ymd}T00:00:00`);
+            if (!Number.isFinite(dt.getTime())) return;
+            const recordQuarter = Math.floor(dt.getMonth() / 3) + 1;
+            if (dt.getFullYear() !== y || recordQuarter !== q) return;
+            const items = (order.products || []).map((p) => `${p.name || p.productName || '-'}`).filter(Boolean).slice(0, 3).join(', ');
+            records.push({
+                dateKey: ymd,
+                dateLabel: this.formatDateForDisplay(ymd),
+                description: `Bán hàng ${order.id ? `(${order.id}) ` : ''}${items || (order.customerName || '')}`.trim(),
+                amount: Math.max(0, Math.round(this.getOrderRecordedNetRevenue(order) || 0)),
+            });
+        });
+        repairs.forEach((repair) => {
+            if ((repair && repair.status) !== 'Đã trả') return;
+            const ymd = this.normalizeRecordDateToYmd(repair && repair.date);
+            if (!ymd) return;
+            const dt = new Date(`${ymd}T00:00:00`);
+            if (!Number.isFinite(dt.getTime())) return;
+            const recordQuarter = Math.floor(dt.getMonth() / 3) + 1;
+            if (dt.getFullYear() !== y || recordQuarter !== q) return;
+            records.push({
+                dateKey: ymd,
+                dateLabel: this.formatDateForDisplay(ymd),
+                description: `Dịch vụ sửa chữa ${repair.id ? `(${repair.id})` : ''}`.trim(),
+                amount: Math.max(0, Math.round(Number(repair.repairCost) || 0)),
+            });
+        });
+        records.sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey)));
+        return records;
+    }
+
+    setTaxDeclarationFormType(formType) {
+        this.taxDeclarationFormType = formType === 's2a' ? 's2a' : 's1a';
+        this.loadPage('tax-declaration');
+    }
+
+    setTaxDeclarationQuarter(quarter) {
+        this.taxDeclarationQuarter = String(Math.min(4, Math.max(1, Number(quarter) || 1)));
+        this.loadPage('tax-declaration');
+    }
+
+    setTaxDeclarationYear(year) {
+        const y = Number(year);
+        this.taxDeclarationYear = String(Number.isFinite(y) && y > 2000 ? y : new Date().getFullYear());
+        this.loadPage('tax-declaration');
+    }
+
+    buildTaxDeclarationPages(records, rowsPerPage, lastPageDataRows) {
+        const list = Array.isArray(records) ? records : [];
+        const perPage = Math.max(1, Number(rowsPerPage) || 26);
+        const lastPageRows = Math.max(1, Math.min(perPage, Number(lastPageDataRows) || (perPage - 1)));
+        if (list.length <= lastPageRows) return [list.slice()];
+
+        const pageCount = Math.ceil((list.length - lastPageRows) / perPage) + 1;
+        const pages = [];
+        let cursor = 0;
+        for (let i = 0; i < pageCount - 1; i += 1) {
+            pages.push(list.slice(cursor, cursor + perPage));
+            cursor += perPage;
+        }
+        pages.push(list.slice(cursor));
+        return pages;
+    }
+
+    getTaxDeclarationDocumentHtml(opts) {
+        const selectedForm = opts && opts.selectedForm === 's2a' ? 's2a' : 's1a';
+        const selectedQuarter = String((opts && opts.selectedQuarter) || '1');
+        const selectedYear = String((opts && opts.selectedYear) || new Date().getFullYear());
+        const company = (opts && opts.company) || {};
+        const pages = (opts && opts.pages) || [[]];
+        const totalAmount = Number(opts && opts.totalAmount) || 0;
+        const rowsPerPage = Math.max(1, Number((opts && opts.rowsPerPage) || 27));
+        const lastPageReduce = Math.max(0, Number((opts && opts.lastPageReduce) || 2));
+
+        const pageHtml = pages.map((rows, pageIndex) => {
+            const firstRowNo = pageIndex * rowsPerPage;
+            const isLastPage = pageIndex === pages.length - 1;
+            const targetDataRows = isLastPage
+                ? Math.max(0, rowsPerPage - 1 - lastPageReduce)
+                : rowsPerPage;
+            const blankRowsCount = Math.max(0, targetDataRows - rows.length);
+            const bodyRows = rows.length
+                ? rows.map((item, idx) => `
+                    <tr>
+                        <td class="tax-cell tax-cell-center">${firstRowNo + idx + 1}</td>
+                        <td class="tax-cell tax-cell-center">${escapeHtml(item.dateLabel || '')}</td>
+                        <td class="tax-cell tax-cell-desc">${escapeHtml(item.description || '')}</td>
+                        <td class="tax-cell tax-cell-right">${(Number(item.amount) || 0).toLocaleString('vi-VN')}</td>
+                    </tr>
+                `).join('')
+                : `<tr><td class="tax-cell tax-cell-center">1</td><td class="tax-cell tax-cell-center">-</td><td class="tax-cell">Chưa có dữ liệu phát sinh trong quý</td><td class="tax-cell tax-cell-right">0</td></tr>`;
+            const blankRowsHtml = Array.from({ length: blankRowsCount }, (_, idx) => `
+                <tr>
+                    <td class="tax-cell tax-cell-center">${firstRowNo + rows.length + idx + 1}</td>
+                    <td class="tax-cell tax-cell-center"></td>
+                    <td class="tax-cell"></td>
+                    <td class="tax-cell tax-cell-right"></td>
+                </tr>
+            `).join('');
+            const lastPageFooter = isLastPage ? `
+                <tr>
+                    <td colspan="3" class="tax-cell tax-footer-label">Tổng cộng</td>
+                    <td class="tax-cell tax-cell-right tax-footer-label">${totalAmount.toLocaleString('vi-VN')}</td>
+                </tr>
+                ${selectedForm === 's2a' ? `
+                    <tr><td colspan="3" class="tax-cell tax-footer-label">Thuế GTGT</td><td class="tax-cell tax-cell-right"></td></tr>
+                    <tr><td colspan="3" class="tax-cell tax-footer-label">Thuế TNCN</td><td class="tax-cell tax-cell-right"></td></tr>
+                    <tr><td colspan="3" class="tax-cell tax-footer-label">Tổng số thuế GTGT phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
+                    <tr><td colspan="3" class="tax-cell tax-footer-label">Tổng số thuế TNCN phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
+                ` : ''}
+            ` : '';
+
+            return `
+                <section class="tax-page">
+                    <div class="tax-sheet">
+                        <div class="tax-meta">
+                            <div>
+                                <p><strong>HỘ, CÁ NHÂN KINH DOANH:</strong> ${escapeHtml(company.companyName || '')}</p>
+                                <p><strong>Mã số thuế:</strong> ${escapeHtml(company.taxCode || '')}</p>
+                                <p><strong>Địa chỉ:</strong> ${escapeHtml(company.address || '')}</p>
+                            </div>
+                            <div style="text-align:right">
+                                <p><strong>Mẫu số ${selectedForm === 's1a' ? 'S1a-HKD' : 'S2a-HKD'}</strong></p>
+                                <p>(Kèm theo Thông tư số 152/2025/TT-BTC<br>ngày 31 tháng 12 năm 2025 của<br>Bộ trưởng-Bộ Tài chính)</p>
+                            </div>
+                        </div>
+                        <div class="tax-doc-title">SỔ CHI TIẾT DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</div>
+                        <div class="tax-doc-sub">Kỳ kê khai: Quý ${selectedQuarter}/${selectedYear} - Trang ${pageIndex + 1}/${pages.length}</div>
+                        <table class="tax-table">
+                            <thead>
+                                <tr>
+                                    <th class="tax-cell tax-cell-center" style="width:36px">T</th>
+                                    <th class="tax-cell tax-cell-center" style="width:128px">${selectedForm === 's1a' ? 'Ngày tháng' : 'Ngày, tháng'}</th>
+                                    <th class="tax-cell tax-cell-center">Giao dịch</th>
+                                    <th class="tax-cell tax-cell-center" style="width:120px">Số tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${bodyRows}
+                                ${blankRowsHtml}
+                                ${lastPageFooter}
+                            </tbody>
+                        </table>
+                        ${isLastPage ? `
+                            <div class="tax-sign">
+                                <div class="tax-sign-box">
+                                    <div>Ngày .... tháng .... năm ....</div>
+                                    <div style="font-weight:700;margin-top:6px">NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/<br>CÁ NHÂN KINH DOANH</div>
+                                    <div style="font-style:italic;margin-top:4px">(Ký, ghi rõ họ tên, đóng dấu (nếu có))</div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </section>
+            `;
+        }).join('');
+
+        return `
+            <div class="tax-pages-root">
+                ${pageHtml}
+            </div>
+        `;
+    }
+
+    printTaxDeclaration() {
+        const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
+        const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
+        const selectedYear = String(Number(this.taxDeclarationYear) || new Date().getFullYear());
+        const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
+        const rowsPerPage = 27;
+        const lastPageReduce = 2;
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
+        const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const company = this.getCompanySettings();
+        const bodyHtml = this.getTaxDeclarationDocumentHtml({
+            selectedForm,
+            selectedQuarter,
+            selectedYear,
+            company,
+            pages,
+            totalAmount,
+            rowsPerPage,
+            lastPageReduce,
+        });
+
+        const printHtml = `
+            <!DOCTYPE html>
+            <html lang="vi">
+            <head>
+                <meta charset="UTF-8">
+                <title>In mẫu ${selectedForm.toUpperCase()} - Quý ${selectedQuarter}/${selectedYear}</title>
+                <style>
+                    @page { size: A4; margin: 14mm 10mm 10mm 10mm; }
+                    html, body { margin: 0; padding: 0; background: #fff; }
+                    body { font-family: "Times New Roman", Times, serif; color: #111827; }
+                    .tax-pages-root { width: 100%; padding-top: 4mm; box-sizing: border-box; }
+                    .tax-page { page-break-after: always; break-after: page; }
+                    .tax-page:last-child { page-break-after: auto; break-after: auto; }
+                    .tax-sheet { width: 190mm; min-height: 277mm; margin: 0 auto; color: #111827; padding-top: 8mm; box-sizing: border-box; }
+                    .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
+                    .tax-meta p{margin:3px 0}
+                    .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
+                    .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
+                    .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
+                    .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
+                    .tax-table tbody tr{height:7mm}
+                    .tax-cell-center{text-align:center}
+                    .tax-cell-right{text-align:right}
+                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .tax-footer-label{font-weight:700}
+                    .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
+                    .tax-sign-box{min-width:320px;text-align:center}
+                </style>
+            </head>
+            <body>
+                ${bodyHtml}
+                <script>
+                    window.onload = function () {
+                        setTimeout(function () { window.print(); }, 80);
+                    };
+                    window.onafterprint = function () { window.close(); };
+                </script>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank', 'width=1024,height=768');
+        if (!printWindow) {
+            this.showNotification('Không mở được cửa sổ in. Vui lòng cho phép pop-up và thử lại.', 'error');
+            return;
+        }
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+    }
+
+    exportTaxDeclarationDocx() {
+        const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
+        const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
+        const selectedYear = String(Number(this.taxDeclarationYear) || new Date().getFullYear());
+        const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
+        const rowsPerPage = 27;
+        const lastPageReduce = 2;
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
+        const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const company = this.getCompanySettings();
+        const bodyHtml = this.getTaxDeclarationDocumentHtml({
+            selectedForm,
+            selectedQuarter,
+            selectedYear,
+            company,
+            pages,
+            totalAmount,
+            rowsPerPage,
+            lastPageReduce,
+        });
+
+        const docHtml = `
+            <!DOCTYPE html>
+            <html lang="vi">
+            <head>
+                <meta charset="UTF-8">
+                <title>To khai ${selectedForm.toUpperCase()} Quy ${selectedQuarter} ${selectedYear}</title>
+                <style>
+                    @page{size:A4;margin:14mm 10mm 10mm 10mm}
+                    body{font-family:"Times New Roman",Times,serif;color:#111827}
+                    .tax-page{page-break-after:always}
+                    .tax-page:last-child{page-break-after:auto}
+                    .tax-sheet{max-width:190mm;margin:0 auto;color:#111827;padding-top:8mm;box-sizing:border-box}
+                    .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
+                    .tax-meta p{margin:3px 0}
+                    .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
+                    .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
+                    .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
+                    .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
+                    .tax-table tbody tr{height:7mm}
+                    .tax-cell-center{text-align:center}
+                    .tax-cell-right{text-align:right}
+                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .tax-footer-label{font-weight:700}
+                    .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
+                    .tax-sign-box{min-width:320px;text-align:center}
+                </style>
+            </head>
+            <body>
+                ${bodyHtml}
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword;charset=utf-8' });
+        const fileName = `mau-${selectedForm}-quy-${selectedQuarter}-${selectedYear}.docx`;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        this.showNotification(`Đã xuất file Word: ${fileName}`, 'success');
+    }
+
+    getTaxDeclarationContent() {
+        const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
+        const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
+        const selectedYear = String(Number(this.taxDeclarationYear) || new Date().getFullYear());
+        const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
+        const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const company = this.getCompanySettings();
+        const rowsPerPage = 27;
+        const lastPageReduce = 2;
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
+        const documentPagesHtml = this.getTaxDeclarationDocumentHtml({
+            selectedForm,
+            selectedQuarter,
+            selectedYear,
+            company,
+            pages,
+            totalAmount,
+            rowsPerPage,
+            lastPageReduce,
+        });
+
+        const yearNum = Number(selectedYear) || new Date().getFullYear();
+        const yearOptions = [yearNum - 1, yearNum, yearNum + 1]
+            .map((y) => `<option value="${y}"${String(y) === selectedYear ? ' selected' : ''}>${y}</option>`)
+            .join('');
+
+        return `
+            <div class="fade-in tax-declaration-root">
+                <style>
+                    .tax-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#fff7ed 0%,#fef2f2 100%);border:1px solid #fca5a5;border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:0 4px 12px rgba(220,38,38,.12)}
+                    .tax-toolbar-left{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+                    .tax-toolbar select,.tax-toolbar button{padding:8px 10px;border-radius:8px;border:1px solid #f59e0b;background:#fffef0;color:#7f1d1d}
+                    .tax-toolbar button{cursor:pointer;font-weight:600}
+                    .tax-print-btn{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:none}
+                    .tax-export-btn{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none}
+                    .tax-sheet-wrap{background:linear-gradient(180deg,#fffbeb 0%,#fff 40%);border:1px solid #fcd34d;padding:16px;border-radius:12px;box-shadow:0 4px 12px rgba(245,158,11,.12)}
+                    .tax-page{page-break-after:always}
+                    .tax-page:last-child{page-break-after:auto}
+                    .tax-sheet{max-width:210mm;min-height:277mm;margin:0 auto 10mm auto;padding:17mm 10mm 6mm 10mm;border:1px solid #d1d5db;color:#111827;background:#fff}
+                    .tax-pages-root{font-family:"Times New Roman",Times,serif}
+                    .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
+                    .tax-meta p{margin:3px 0}
+                    .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
+                    .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
+                    .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
+                    .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
+                    .tax-table tbody tr{height:7mm}
+                    .tax-cell-center{text-align:center}
+                    .tax-cell-right{text-align:right}
+                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .tax-footer-label{font-weight:700}
+                    .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
+                    .tax-sign-box{min-width:320px;text-align:center}
+                    @media print{
+                        @page{size:A4;margin:14mm 10mm 10mm 10mm}
+                        .header,.top-utility-bar,.main-nav-bar,.tax-toolbar{display:none!important}
+                        .main-content,.content,.tax-declaration-root,.tax-sheet-wrap{padding:0!important;margin:0!important;box-shadow:none!important;background:#fff!important}
+                        .tax-sheet{border:none;padding:0;max-width:none}
+                    }
+                </style>
+                <div class="tax-toolbar">
+                    <div class="tax-toolbar-left">
+                        <select onchange="app.setTaxDeclarationFormType(this.value)">
+                            <option value="s1a"${selectedForm === 's1a' ? ' selected' : ''}>Mẫu S1a-HKD</option>
+                            <option value="s2a"${selectedForm === 's2a' ? ' selected' : ''}>Mẫu S2a-HKD</option>
+                        </select>
+                        <select onchange="app.setTaxDeclarationQuarter(this.value)">
+                            <option value="1"${selectedQuarter === '1' ? ' selected' : ''}>Quý 1</option>
+                            <option value="2"${selectedQuarter === '2' ? ' selected' : ''}>Quý 2</option>
+                            <option value="3"${selectedQuarter === '3' ? ' selected' : ''}>Quý 3</option>
+                            <option value="4"${selectedQuarter === '4' ? ' selected' : ''}>Quý 4</option>
+                        </select>
+                        <select onchange="app.setTaxDeclarationYear(this.value)">
+                            ${yearOptions}
+                        </select>
+                    </div>
+                    <div class="tax-toolbar-left">
+                        <button type="button" class="tax-export-btn" onclick="app.exportTaxDeclarationDocx()">📄 Xuất DOCX</button>
+                        <button type="button" class="tax-print-btn" onclick="app.printTaxDeclaration()">🖨 In mẫu A4</button>
+                    </div>
+                </div>
+                <div class="tax-sheet-wrap">
+                    ${documentPagesHtml}
                 </div>
             </div>
         `;
