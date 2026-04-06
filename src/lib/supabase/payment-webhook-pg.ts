@@ -1,20 +1,9 @@
 import { normalizeShopSlug } from "@/lib/backend/userShopSlug";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
+import { PaymentWebhookProcessingError } from "@/lib/supabase/payment-webhook-errors";
+import type { PaymentWebhookBody } from "@/lib/validation/payment-webhook";
 import { migrateTrialShopToProductionPg } from "./migrate-trial-to-production-pg";
-
-type GenericWebhookPayload = {
-  id?: string | number;
-  referenceCode?: string;
-  code?: string;
-  txnId?: string | number;
-  transferType?: string;
-  transferAmount?: number | string;
-  amount?: number | string;
-  content?: string;
-  description?: string;
-  transferContent?: string;
-};
 
 function normalizeText(v: unknown) {
   return String(v || "")
@@ -45,11 +34,6 @@ function contentHasRefCompact(content: string, paymentRef: string) {
   return c.includes(r);
 }
 
-function toAmount(v: unknown) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
 type UserPayRow = { id: string; payment_ref?: string | null; shop_slug?: string | null };
 
 function findPaymentMatch(
@@ -78,8 +62,75 @@ function findPaymentMatch(
   return candidates[0];
 }
 
+function isUniqueViolation(e: { code?: string; message?: string } | null) {
+  if (!e) return false;
+  if (e.code === "23505") return true;
+  return String(e.message || "").toLowerCase().includes("duplicate key");
+}
+
+async function reserveTxnOrShortCircuit(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  txnId: string,
+  reserveDetail: Record<string, unknown>,
+): Promise<"reserved" | "dup_matched" | "dup_unmatched"> {
+  const { error: insErr } = await admin.from("payment_webhook_ingest").insert({
+    txn_id: txnId,
+    outcome: "processing",
+    detail: reserveDetail,
+  });
+  if (!insErr) return "reserved";
+  if (!isUniqueViolation(insErr)) {
+    console.error("[payment-webhook-pg] payment_webhook_ingest insert", insErr.message, insErr.code);
+    throw new Error("payment_webhook_ingest_reserve_failed");
+  }
+
+  const { data: existing, error: readErr } = await admin
+    .from("payment_webhook_ingest")
+    .select("outcome")
+    .eq("txn_id", txnId)
+    .maybeSingle();
+  if (readErr) {
+    console.error("[payment-webhook-pg] payment_webhook_ingest read after conflict", readErr.message);
+    throw new Error("payment_webhook_ingest_read_failed");
+  }
+  const oc = String(existing?.outcome || "");
+  if (oc === "processing") {
+    throw new PaymentWebhookProcessingError(txnId);
+  }
+  if (oc === "matched" || oc === "matched_upgrade" || oc === "matched_ingest") {
+    return "dup_matched";
+  }
+  if (oc === "unmatched") {
+    return "dup_unmatched";
+  }
+  console.error("[payment-webhook-pg] unknown outcome after conflict", oc, txnId);
+  throw new Error("payment_webhook_ingest_conflict");
+}
+
+async function finalizeIngest(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  txnId: string,
+  outcome: string,
+  detail: Record<string, unknown>,
+) {
+  const { data, error } = await admin
+    .from("payment_webhook_ingest")
+    .update({ outcome, detail })
+    .eq("txn_id", txnId)
+    .eq("outcome", "processing")
+    .select("txn_id")
+    .maybeSingle();
+  if (error) {
+    console.error("[payment-webhook-pg] finalize ingest", error.message);
+    throw new Error("payment_webhook_ingest_finalize_failed");
+  }
+  if (!data) {
+    console.warn("[payment-webhook-pg] finalize no row (race or stuck state)", { txnId, outcome });
+  }
+}
+
 export async function handlePaymentWebhookPostgres(
-  payload: GenericWebhookPayload,
+  payload: PaymentWebhookBody,
   transferContent: string,
   paymentCode: string,
   paymentCodeCompact: string,
@@ -90,21 +141,22 @@ export async function handlePaymentWebhookPostgres(
 ): Promise<Record<string, unknown>> {
   const admin = createSupabaseAdminClient();
 
-  const { data: legacyRow, error: ingestReadErr } = await admin
-    .from("payment_webhook_ingest")
-    .select("outcome")
-    .eq("txn_id", txnId)
-    .maybeSingle();
-  if (ingestReadErr) {
-    console.error("[payment-webhook-pg] payment_webhook_ingest read", ingestReadErr.message);
-    throw new Error("payment_webhook_ingest_read_failed");
-  }
+  const reserveDetail: Record<string, unknown> = {
+    phase: "reserved",
+    receivedAt: Date.now(),
+    transferContent,
+    amount,
+    paymentCode,
+    requiredPending,
+    requiredUpgrade,
+  };
 
-  if (legacyRow?.outcome === "matched" || legacyRow?.outcome === "matched_upgrade") {
+  const reserved = await reserveTxnOrShortCircuit(admin, txnId, reserveDetail);
+  if (reserved === "dup_matched") {
     return { success: true, duplicated: true, reason: "already_credited" };
   }
-  if (legacyRow?.outcome === "matched_ingest") {
-    return { success: true, duplicated: true, reason: "already_matched_ingest" };
+  if (reserved === "dup_unmatched") {
+    return { success: true, matched: false, duplicated: true, hint: "unmatched" };
   }
 
   const { data: pendingRows, error: pendingErr } = await admin
@@ -150,18 +202,14 @@ export async function handlePaymentWebhookPostgres(
   if (!match) {
     const statusNote =
       !pendingRows?.length && !upgradeRows?.length ? "no_pending_user" : "unmatched";
-    await admin.from("payment_webhook_ingest").upsert({
-      txn_id: txnId,
-      outcome: "unmatched",
-      detail: {
-        receivedAt: Date.now(),
-        amount,
-        paymentCode,
-        transferContent,
-        status: statusNote,
-        requiredPending,
-        requiredUpgrade,
-      },
+    await finalizeIngest(admin, txnId, "unmatched", {
+      receivedAt: Date.now(),
+      amount,
+      paymentCode,
+      transferContent,
+      status: statusNote,
+      requiredPending,
+      requiredUpgrade,
     });
     return {
       success: true,
@@ -221,19 +269,15 @@ export async function handlePaymentWebhookPostgres(
     await admin.from("user_profiles").update({ payment_status: "active" }).eq("id", matchedUid);
   }
 
-  await admin.from("payment_webhook_ingest").upsert({
-    txn_id: txnId,
-    outcome: isUpgrade ? "matched_upgrade" : "matched",
-    detail: {
-      receivedAt: Date.now(),
-      uid: matchedUid,
-      paymentRef: matchedRef,
-      upgrade: isUpgrade,
-      amount,
-      paymentCode,
-      transferContent,
-      status: "matched",
-    },
+  await finalizeIngest(admin, txnId, isUpgrade ? "matched_upgrade" : "matched", {
+    receivedAt: Date.now(),
+    uid: matchedUid,
+    paymentRef: matchedRef,
+    upgrade: isUpgrade,
+    amount,
+    paymentCode,
+    transferContent,
+    status: "matched",
   });
 
   return { success: true, matched: true, uid: matchedUid };

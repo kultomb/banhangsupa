@@ -1,21 +1,11 @@
 import { parseIncomingTransferAmount } from "@/lib/payment-incoming-amount";
+import { PaymentWebhookProcessingError } from "@/lib/supabase/payment-webhook-errors";
 import { handlePaymentWebhookPostgres } from "@/lib/supabase/payment-webhook-pg";
+import { paymentWebhookBodySchema } from "@/lib/validation/payment-webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type GenericWebhookPayload = {
-  id?: string | number;
-  referenceCode?: string;
-  code?: string;
-  txnId?: string | number;
-  transferType?: string;
-  transferAmount?: number | string;
-  amount?: number | string;
-  content?: string;
-  description?: string;
-  transferContent?: string;
-};
+export const maxDuration = 120;
 
 function normalizeText(v: unknown) {
   return String(v || "")
@@ -27,20 +17,16 @@ function normalizeCompact(v: unknown) {
   return normalizeText(v).replace(/[^A-Z0-9]/g, "");
 }
 
+/** Chỉ biến server — không dùng NEXT_PUBLIC (tránh lệch với client và không lộ trong bundle API). */
 function paymentAmountRequired() {
-  const n = Number(
-    process.env.PAYMENT_AMOUNT || process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000,
-  );
+  const n = Number(process.env.PAYMENT_AMOUNT || 299000);
   return Number.isFinite(n) && n > 0 ? n : 299000;
 }
 
-/** Mức tiền cho CK nâng cấp (pending_upgrade). Mặc định = kích hoạt nếu không cấu hình riêng. */
 function paymentUpgradeAmountRequired() {
   const raw =
     process.env.PAYMENT_UPGRADE_AMOUNT ||
-    process.env.NEXT_PUBLIC_PAYMENT_UPGRADE_AMOUNT ||
     process.env.PAYMENT_AMOUNT ||
-    process.env.NEXT_PUBLIC_PAYMENT_AMOUNT ||
     299000;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : paymentAmountRequired();
@@ -59,11 +45,18 @@ function webhookSecretOk(request: Request) {
   const expectedApiKeys = parseAcceptedApiKeys();
   const expectedSecret = String(process.env.PAYMENT_WEBHOOK_SECRET || "").trim();
   const hasAuth = expectedApiKeys.length > 0 || !!expectedSecret;
+
   if (!hasAuth) {
-    const allowInsecureLocal =
-      process.env.NODE_ENV !== "production" &&
-      String(process.env.PAYMENT_WEBHOOK_ALLOW_INSECURE_LOCAL || "").trim() === "1";
-    return allowInsecureLocal;
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+    if (String(process.env.PAYMENT_WEBHOOK_ALLOW_INSECURE_LOCAL || "").trim() === "1") {
+      console.warn(
+        "[payment/webhook] PAYMENT_WEBHOOK_ALLOW_INSECURE_LOCAL=1 — webhook không xác thực; chỉ dùng dev.",
+      );
+      return true;
+    }
+    return false;
   }
 
   const authHeader = String(request.headers.get("authorization") || "").trim();
@@ -79,16 +72,55 @@ function webhookSecretOk(request: Request) {
   return false;
 }
 
+/** Mã giao dịch ổn định từ ngân hàng / SePay — không dùng `code` (mã CK) làm txn id. */
+function resolveStableTxnId(payload: {
+  id?: string | number;
+  txnId?: string | number;
+  referenceCode?: string | number;
+  transactionId?: string | number;
+  transaction_id?: string | number;
+}): string {
+  const raw =
+    payload.id ??
+    payload.txnId ??
+    payload.referenceCode ??
+    payload.transactionId ??
+    payload.transaction_id;
+  return normalizeText(raw);
+}
+
 export async function POST(request: Request) {
   try {
     if (!webhookSecretOk(request)) {
       return Response.json({ success: false, reason: "unauthorized" }, { status: 401 });
     }
 
-    const payload = (await request.json().catch(() => ({}))) as GenericWebhookPayload;
+    const rawJson = await request.json().catch(() => null);
+    const parsed = paymentWebhookBodySchema.safeParse(rawJson);
+    if (!parsed.success) {
+      return Response.json(
+        { success: false, reason: "invalid_body", issues: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+    const payload = parsed.data;
+
     const transferTypeLower = String(payload.transferType || "").trim().toLowerCase();
     if (transferTypeLower === "out") {
       return Response.json({ success: true, ignored: true, reason: "not_incoming_transfer" });
+    }
+
+    const txnId = resolveStableTxnId(payload);
+    if (!txnId) {
+      return Response.json(
+        {
+          success: false,
+          reason: "missing_txn_id",
+          message:
+            "Thiếu id giao dịch ổn định (id / txnId / referenceCode / transactionId / transaction_id). Bắt buộc để chống xử lý trùng.",
+        },
+        { status: 400 },
+      );
     }
 
     const transferContent = normalizeText(
@@ -97,9 +129,6 @@ export async function POST(request: Request) {
     const paymentCode = normalizeText(payload.code);
     const paymentCodeCompact = normalizeCompact(paymentCode);
     const amount = parseIncomingTransferAmount(payload.transferAmount ?? payload.amount);
-    const txnId = normalizeText(
-      payload.id || payload.txnId || payload.referenceCode || payload.code || `NOID-${Date.now()}`,
-    );
 
     if (!transferContent || !amount) {
       return Response.json({ success: false, reason: "missing_fields" }, { status: 400 });
@@ -120,6 +149,17 @@ export async function POST(request: Request) {
     );
     return Response.json(body);
   } catch (error) {
+    if (error instanceof PaymentWebhookProcessingError) {
+      return Response.json(
+        {
+          success: false,
+          reason: "processing",
+          message: "Giao dịch đang xử lý; vui lòng retry sau.",
+          txnId: error.txnId,
+        },
+        { status: 503 },
+      );
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.error("[payment/webhook]", message);
     const respBody =

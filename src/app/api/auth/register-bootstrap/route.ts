@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 
 import { getAdminAuthService } from "@/lib/db/server";
 import { registerBootstrapPostgres } from "@/lib/supabase/register-bootstrap-pg";
+import { registerBootstrapBodySchema } from "@/lib/validation/register-bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,23 +20,23 @@ function createPaymentRef(prefix: "PAY" | "DEMO", slug: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
-      idToken?: string;
-      email?: string;
-      shopSlugInput?: string;
-      isTrial?: boolean;
-    };
-    const idToken = String(body?.idToken || "").trim();
-    const emailTrimmed = String(body?.email || "").trim();
-    const rawShop = String(body?.shopSlugInput ?? "").trim();
+    const raw = await request.json().catch(() => null);
+    const parsed = registerBootstrapBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "invalid_body", issues: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const body = parsed.data;
+    const idToken = String(body.idToken || "").trim();
+    const rawShop = String(body.shopSlugInput ?? "").trim();
     const shopDisplayName = rawShop.replace(/\s+/g, " ").trim();
-    const isTrial = body?.isTrial === true;
+    const isTrial = body.isTrial === true;
 
     if (!idToken) {
       return Response.json({ error: "missing_token" }, { status: 400 });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
-      return Response.json({ error: "invalid_email" }, { status: 400 });
     }
 
     const decoded = await getAdminAuthService().verifyIdToken(idToken).catch(() => null);
@@ -43,6 +44,23 @@ export async function POST(request: Request) {
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
     const uid = decoded.uid;
+
+    const authUser = await getAdminAuthService().getUser(uid);
+    const emailFromAuth = String(authUser?.email || "")
+      .trim()
+      .toLowerCase();
+    if (!emailFromAuth || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFromAuth)) {
+      return Response.json(
+        { error: "auth_email_missing", message: "Tài khoản chưa có email xác thực trong Auth." },
+        { status: 400 },
+      );
+    }
+    if (body.email) {
+      const bodyEmail = String(body.email).trim().toLowerCase();
+      if (bodyEmail !== emailFromAuth) {
+        return Response.json({ error: "email_mismatch", message: "Email body không khớp email đăng nhập." }, { status: 400 });
+      }
+    }
 
     const slug = applyTrialPrefixToSlug(rawShop, isTrial);
     const trialPrefix = getTrialShopPrefix();
@@ -67,7 +85,7 @@ export async function POST(request: Request) {
 
     const r = await registerBootstrapPostgres({
       uid,
-      emailTrimmed,
+      emailTrimmed: emailFromAuth,
       slug,
       shopDisplayName,
       isTrial,

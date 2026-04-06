@@ -17,10 +17,10 @@ function mapListedUser(u: SupabaseAuthUser): ListedAuthUser {
   };
 }
 
+/** Chỉ `app_metadata` — user_metadata client có thể tự sửa, không được dùng làm admin. */
 function isAdminClaim(u: SupabaseAuthUser): boolean {
   const am = u.app_metadata as Record<string, unknown> | undefined;
-  const um = u.user_metadata as Record<string, unknown> | undefined;
-  return am?.admin === true || um?.admin === true;
+  return am?.admin === true;
 }
 
 export class SupabaseAdminAuth implements IAdminAuthService {

@@ -10,12 +10,11 @@ function mapPayload(payload: jose.JWTPayload): SupabaseJwtPayload | null {
   const sub = String(payload.sub || "");
   if (!sub) return null;
   const am = payload.app_metadata as Record<string, unknown> | undefined;
-  const um = payload.user_metadata as Record<string, unknown> | undefined;
-  const admin = am?.admin === true || um?.admin === true;
+  const adminFromApp = am?.admin === true;
   return {
     sub,
     email: typeof payload.email === "string" ? payload.email : undefined,
-    admin: admin === true ? true : payload.admin === true ? true : undefined,
+    admin: adminFromApp ? true : undefined,
   };
 }
 

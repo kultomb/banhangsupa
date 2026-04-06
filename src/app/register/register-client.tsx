@@ -143,6 +143,15 @@ export default function RegisterForm() {
           setError("Tên shop chỉ gồm a-z, số, dấu -, độ dài 3-30 ký tự.");
         } else if (bootRes.status === 401) {
           setError("Đăng nhập không hợp lệ. Vui lòng thử lại.");
+        } else if (
+          bootJson.error === "email_mismatch" ||
+          bootJson.error === "auth_email_missing"
+        ) {
+          setError(
+            "Email tài khoản không hợp lệ hoặc không khớp. Hãy đăng ký lại bằng đúng email đã nhập.",
+          );
+        } else if (bootJson.error === "invalid_body") {
+          setError("Dữ liệu gửi lên không hợp lệ. Tải lại trang và thử lại.");
         } else if (bootJson.message) {
           setError(`Không tạo được cửa hàng: ${bootJson.message}`);
         } else {
