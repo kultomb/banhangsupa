@@ -7557,70 +7557,9 @@ class HamobileBanhang {
         printWindow.document.close();
     }
 
-    exportTaxDeclarationDocx() {
-        const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
-        const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
-        const selectedYear = String(Number(this.taxDeclarationYear) || new Date().getFullYear());
-        const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
-        const rowsPerPage = 27;
-        const lastPageReduce = 2;
-        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
-        const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-        const company = this.getCompanySettings();
-        const bodyHtml = this.getTaxDeclarationDocumentHtml({
-            selectedForm,
-            selectedQuarter,
-            selectedYear,
-            company,
-            pages,
-            totalAmount,
-            rowsPerPage,
-            lastPageReduce,
-        });
-
-        const docHtml = `
-            <!DOCTYPE html>
-            <html lang="vi">
-            <head>
-                <meta charset="UTF-8">
-                <title>To khai ${selectedForm.toUpperCase()} Quy ${selectedQuarter} ${selectedYear}</title>
-                <style>
-                    @page{size:A4;margin:14mm 10mm 10mm 10mm}
-                    body{font-family:"Times New Roman",Times,serif;color:#111827}
-                    .tax-page{page-break-after:always}
-                    .tax-page:last-child{page-break-after:auto}
-                    .tax-sheet{max-width:190mm;margin:0 auto;color:#111827;padding-top:8mm;box-sizing:border-box}
-                    .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
-                    .tax-meta p{margin:3px 0}
-                    .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
-                    .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
-                    .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
-                    .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
-                    .tax-table tbody tr{height:7mm}
-                    .tax-cell-center{text-align:center}
-                    .tax-cell-right{text-align:right}
-                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-                    .tax-footer-label{font-weight:700}
-                    .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
-                    .tax-sign-box{min-width:320px;text-align:center}
-                </style>
-            </head>
-            <body>
-                ${bodyHtml}
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword;charset=utf-8' });
-        const fileName = `mau-${selectedForm}-quy-${selectedQuarter}-${selectedYear}.docx`;
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-        this.showNotification(`Đã xuất file Word: ${fileName}`, 'success');
+    exportTaxDeclarationPdf() {
+        this.showNotification('Đang mở hộp in. Chọn Destination = Save as PDF để xuất file PDF chuẩn A4.', 'info');
+        this.printTaxDeclaration();
     }
 
     getTaxDeclarationContent() {
@@ -7700,7 +7639,7 @@ class HamobileBanhang {
                         </select>
                     </div>
                     <div class="tax-toolbar-left">
-                        <button type="button" class="tax-export-btn" onclick="app.exportTaxDeclarationDocx()">📄 Xuất DOCX</button>
+                        <button type="button" class="tax-export-btn" onclick="app.exportTaxDeclarationPdf()">📄 Xuất PDF</button>
                         <button type="button" class="tax-print-btn" onclick="app.printTaxDeclaration()">🖨 In mẫu A4</button>
                     </div>
                 </div>
