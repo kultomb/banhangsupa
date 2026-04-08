@@ -7326,11 +7326,13 @@ class HamobileBanhang {
             if (!Number.isFinite(dt.getTime())) return;
             const recordQuarter = Math.floor(dt.getMonth() / 3) + 1;
             if (dt.getFullYear() !== y || recordQuarter !== q) return;
-            const items = (order.products || []).map((p) => `${p.name || p.productName || '-'}`).filter(Boolean).slice(0, 3).join(', ');
+            const names = (order.products || []).map((p) => `${p.name || p.productName || '-'}`).filter(Boolean);
+            const items = names.join(', ');
             records.push({
                 dateKey: ymd,
                 dateLabel: this.formatDateForDisplay(ymd),
-                description: `Bán hàng ${order.id ? `(${order.id}) ` : ''}${items || (order.customerName || '')}`.trim(),
+                orderCode: String(order.id || order.orderCode || '').trim(),
+                description: (items || order.customerName || '').trim() || 'Bán hàng',
                 amount: Math.max(0, Math.round(this.getOrderRecordedNetRevenue(order) || 0)),
             });
         });
@@ -7345,7 +7347,8 @@ class HamobileBanhang {
             records.push({
                 dateKey: ymd,
                 dateLabel: this.formatDateForDisplay(ymd),
-                description: `Dịch vụ sửa chữa ${repair.id ? `(${repair.id})` : ''}`.trim(),
+                orderCode: String(repair.id || '').trim(),
+                description: 'Dịch vụ sửa chữa'.trim(),
                 amount: Math.max(0, Math.round(Number(repair.repairCost) || 0)),
             });
         });
@@ -7369,20 +7372,27 @@ class HamobileBanhang {
         this.loadPage('tax-declaration');
     }
 
-    buildTaxDeclarationPages(records, rowsPerPage, lastPageDataRows) {
+    buildTaxDeclarationPages(records, rowsPerPage, lastPageDataRows, options) {
         const list = Array.isArray(records) ? records : [];
         const perPage = Math.max(1, Number(rowsPerPage) || 26);
         const lastPageRows = Math.max(1, Math.min(perPage, Number(lastPageDataRows) || (perPage - 1)));
+        const delta = options && Number.isFinite(options.firstPageCapacityDelta) ? options.firstPageCapacityDelta : 0;
+        const firstChunkSize = Math.max(1, perPage + delta);
         if (list.length <= lastPageRows) return [list.slice()];
 
-        const pageCount = Math.ceil((list.length - lastPageRows) / perPage) + 1;
         const pages = [];
         let cursor = 0;
-        for (let i = 0; i < pageCount - 1; i += 1) {
-            pages.push(list.slice(cursor, cursor + perPage));
-            cursor += perPage;
+        const first = list.slice(cursor, cursor + firstChunkSize);
+        pages.push(first);
+        cursor += first.length;
+        while (list.length - cursor > lastPageRows) {
+            const chunk = list.slice(cursor, cursor + perPage);
+            pages.push(chunk);
+            cursor += chunk.length;
         }
-        pages.push(list.slice(cursor));
+        if (cursor < list.length) {
+            pages.push(list.slice(cursor));
+        }
         return pages;
     }
 
@@ -7397,41 +7407,51 @@ class HamobileBanhang {
         const lastPageReduce = Math.max(0, Number((opts && opts.lastPageReduce) || 2));
 
         const pageHtml = pages.map((rows, pageIndex) => {
-            const firstRowNo = pageIndex * rowsPerPage;
             const isLastPage = pageIndex === pages.length - 1;
             const targetDataRows = isLastPage
                 ? Math.max(0, rowsPerPage - 1 - lastPageReduce)
                 : rowsPerPage;
-            const blankRowsCount = Math.max(0, targetDataRows - rows.length);
+            const sectionRowCount = pageIndex === 0 ? 1 : 0;
+            const dataBodyRowCount = rows.length ? rows.length : 1;
+            const blankRowsCount = isLastPage
+                ? 0
+                : Math.max(0, targetDataRows - sectionRowCount - dataBodyRowCount);
+            const sectionRowHtml = pageIndex === 0 ? `
+                <tr>
+                    <td class="tax-cell tax-col-order"></td>
+                    <td class="tax-cell tax-col-date"></td>
+                    <td class="tax-cell tax-cell-desc tax-cell-nganh-nghe">1. Ngành nghề</td>
+                    <td class="tax-cell tax-cell-right"></td>
+                </tr>` : '';
             const bodyRows = rows.length
                 ? rows.map((item, idx) => `
                     <tr>
-                        <td class="tax-cell tax-cell-center">${firstRowNo + idx + 1}</td>
-                        <td class="tax-cell tax-cell-center">${escapeHtml(item.dateLabel || '')}</td>
+                        <td class="tax-cell tax-cell-center tax-col-order">${escapeHtml(item.orderCode || '')}</td>
+                        <td class="tax-cell tax-cell-center tax-col-date">${escapeHtml(item.dateLabel || '')}</td>
                         <td class="tax-cell tax-cell-desc">${escapeHtml(item.description || '')}</td>
                         <td class="tax-cell tax-cell-right">${(Number(item.amount) || 0).toLocaleString('vi-VN')}</td>
                     </tr>
                 `).join('')
-                : `<tr><td class="tax-cell tax-cell-center">1</td><td class="tax-cell tax-cell-center">-</td><td class="tax-cell">Chưa có dữ liệu phát sinh trong quý</td><td class="tax-cell tax-cell-right">0</td></tr>`;
-            const blankRowsHtml = Array.from({ length: blankRowsCount }, (_, idx) => `
+                : `<tr><td class="tax-cell tax-cell-center tax-col-order">-</td><td class="tax-cell tax-cell-center tax-col-date">-</td><td class="tax-cell">Chưa có dữ liệu phát sinh trong quý</td><td class="tax-cell tax-cell-right">0</td></tr>`;
+            const blankRowsHtml = Array.from({ length: blankRowsCount }, () => `
                 <tr>
-                    <td class="tax-cell tax-cell-center">${firstRowNo + rows.length + idx + 1}</td>
-                    <td class="tax-cell tax-cell-center"></td>
+                    <td class="tax-cell tax-cell-center tax-col-order"></td>
+                    <td class="tax-cell tax-cell-center tax-col-date"></td>
                     <td class="tax-cell"></td>
                     <td class="tax-cell tax-cell-right"></td>
                 </tr>
             `).join('');
             const lastPageFooter = isLastPage ? `
                 <tr>
-                    <td colspan="3" class="tax-cell tax-footer-label">Tổng cộng</td>
-                    <td class="tax-cell tax-cell-right tax-footer-label">${totalAmount.toLocaleString('vi-VN')}</td>
+                    <td class="tax-cell"></td>
+                    <td class="tax-cell"></td>
+                    <td class="tax-cell">Tổng cộng</td>
+                    <td class="tax-cell tax-cell-right">${totalAmount.toLocaleString('vi-VN')}</td>
                 </tr>
-                ${selectedForm === 's2a' ? `
-                    <tr><td colspan="3" class="tax-cell tax-footer-label">Thuế GTGT</td><td class="tax-cell tax-cell-right"></td></tr>
-                    <tr><td colspan="3" class="tax-cell tax-footer-label">Thuế TNCN</td><td class="tax-cell tax-cell-right"></td></tr>
-                    <tr><td colspan="3" class="tax-cell tax-footer-label">Tổng số thuế GTGT phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
-                    <tr><td colspan="3" class="tax-cell tax-footer-label">Tổng số thuế TNCN phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
-                ` : ''}
+                <tr><td class="tax-cell"></td><td class="tax-cell"></td><td class="tax-cell">Thuế GTGT</td><td class="tax-cell tax-cell-right"></td></tr>
+                <tr><td class="tax-cell"></td><td class="tax-cell"></td><td class="tax-cell">Thuế TNCN</td><td class="tax-cell tax-cell-right"></td></tr>
+                <tr><td class="tax-cell"></td><td class="tax-cell"></td><td class="tax-cell tax-footer-label">Tổng số thuế GTGT phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
+                <tr><td class="tax-cell"></td><td class="tax-cell"></td><td class="tax-cell tax-footer-label">Tổng số thuế TNCN phải nộp</td><td class="tax-cell tax-cell-right"></td></tr>
             ` : '';
 
             return `
@@ -7443,23 +7463,42 @@ class HamobileBanhang {
                                 <p><strong>Mã số thuế:</strong> ${escapeHtml(company.taxCode || '')}</p>
                                 <p><strong>Địa chỉ:</strong> ${escapeHtml(company.address || '')}</p>
                             </div>
-                            <div style="text-align:right">
-                                <p><strong>Mẫu số ${selectedForm === 's1a' ? 'S1a-HKD' : 'S2a-HKD'}</strong></p>
-                                <p>(Kèm theo Thông tư số 152/2025/TT-BTC<br>ngày 31 tháng 12 năm 2025 của<br>Bộ trưởng-Bộ Tài chính)</p>
+                            <div class="tax-meta-right">
+                                <div class="tax-meta-form-block">
+                                    <p><strong>Mẫu số ${selectedForm === 's1a' ? 'S1a-HKD' : 'S2a-HKD'}</strong></p>
+                                    <p>(Kèm theo Thông tư số 152/2025/TT-BTC</p>
+                                    <p>ngày 31 tháng 12 năm 2025 của Bộ trưởng Bộ Tài chính)</p>
+                                </div>
                             </div>
                         </div>
                         <div class="tax-doc-title">SỔ CHI TIẾT DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</div>
                         <div class="tax-doc-sub">Kỳ kê khai: Quý ${selectedQuarter}/${selectedYear} - Trang ${pageIndex + 1}/${pages.length}</div>
                         <table class="tax-table">
+                            <colgroup>
+                                <col class="tax-col-order" />
+                                <col class="tax-col-date" />
+                                <col />
+                                <col class="tax-col-amount" />
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <th class="tax-cell tax-cell-center" style="width:36px">T</th>
-                                    <th class="tax-cell tax-cell-center" style="width:128px">${selectedForm === 's1a' ? 'Ngày tháng' : 'Ngày, tháng'}</th>
-                                    <th class="tax-cell tax-cell-center">Giao dịch</th>
-                                    <th class="tax-cell tax-cell-center" style="width:120px">Số tiền</th>
+                                    <th class="tax-cell tax-cell-center tax-th-header" colspan="2">Chứng từ</th>
+                                    <th class="tax-cell tax-cell-center tax-th-header" rowspan="2">Diễn giải</th>
+                                    <th class="tax-cell tax-cell-center tax-th-header" rowspan="2">Số tiền</th>
+                                </tr>
+                                <tr>
+                                    <th class="tax-cell tax-cell-center tax-th-header tax-col-order">Số hiệu</th>
+                                    <th class="tax-cell tax-cell-center tax-th-header tax-col-date">${selectedForm === 's1a' ? 'Ngày tháng' : 'Ngày, tháng'}</th>
+                                </tr>
+                                <tr>
+                                    <th class="tax-cell tax-cell-center tax-th-code">A</th>
+                                    <th class="tax-cell tax-cell-center tax-th-code">B</th>
+                                    <th class="tax-cell tax-cell-center tax-th-code">C</th>
+                                    <th class="tax-cell tax-cell-center tax-th-code">1</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                ${sectionRowHtml}
                                 ${bodyRows}
                                 ${blankRowsHtml}
                                 ${lastPageFooter}
@@ -7493,7 +7532,7 @@ class HamobileBanhang {
         const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
         const rowsPerPage = 27;
         const lastPageReduce = 2;
-        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce, { firstPageCapacityDelta: -1 });
         const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
         const company = this.getCompanySettings();
         const bodyHtml = this.getTaxDeclarationDocumentHtml({
@@ -7523,14 +7562,25 @@ class HamobileBanhang {
                     .tax-sheet { width: 190mm; min-height: 277mm; margin: 0 auto; color: #111827; padding-top: 8mm; box-sizing: border-box; }
                     .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
                     .tax-meta p{margin:3px 0}
+                    .tax-meta-right{display:flex;justify-content:flex-end;align-items:flex-start;flex:0 1 auto;max-width:55%;line-height:1.35}
+                    .tax-meta-form-block{text-align:center;width:fit-content;max-width:100%}
+                    .tax-meta-form-block p{margin:1px 0}
                     .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
                     .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
                     .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
+                    .tax-table col.tax-col-order{width:68px}
+                    .tax-table col.tax-col-date{width:82px}
+                    .tax-table col.tax-col-amount{width:96px}
                     .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
-                    .tax-table tbody tr{height:7mm}
+                    .tax-table .tax-col-order,.tax-table .tax-col-date{padding:3px 4px;font-size:12px;line-height:1.2}
+                    .tax-table .tax-col-order{word-break:break-all}
+                    .tax-table thead .tax-th-header,.tax-table thead .tax-th-code{background:#cce8f4;font-weight:700}
+                    .tax-table thead .tax-th-code{font-size:12px;padding:2px 6px;line-height:1.15}
+                    .tax-table tbody tr{min-height:7mm}
                     .tax-cell-center{text-align:center}
                     .tax-cell-right{text-align:right}
-                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .tax-cell-desc{white-space:normal;word-wrap:break-word;overflow-wrap:break-word;vertical-align:top}
+                    .tax-cell-nganh-nghe{font-weight:700}
                     .tax-footer-label{font-weight:700}
                     .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
                     .tax-sign-box{min-width:320px;text-align:center}
@@ -7562,6 +7612,337 @@ class HamobileBanhang {
         this.printTaxDeclaration();
     }
 
+    formatTaxDeclarationMoneyVi(n) {
+        return (Math.round(Number(n) || 0)).toLocaleString('vi-VN');
+    }
+
+    buildTaxDeclarationExcelWorksheet(pages, ctx) {
+        const XLSX = typeof window !== 'undefined' ? window.XLSX : null;
+        if (!XLSX || !XLSX.utils) return null;
+        const {
+            selectedForm,
+            selectedQuarter,
+            selectedYear,
+            company,
+            totalAmount,
+            rowsPerPage,
+            lastPageReduce,
+        } = ctx;
+        const formLabel = selectedForm === 's1a' ? 'S1a-HKD' : 'S2a-HKD';
+        const dateHdr = selectedForm === 's1a' ? 'Ngày tháng' : 'Ngày, tháng';
+        const pageList = Array.isArray(pages) && pages.length ? pages : [[]];
+        const excelRowsPerPrintedPage = 42;
+
+        const mauSoBlock = `Mẫu số ${formLabel}\n(Kèm theo Thông tư số 152/2025/TT-BTC\nngày 31 tháng 12 năm 2025 của Bộ trưởng Bộ Tài chính)`;
+        const leftHeadBlock = [
+            `HỘ, CÁ NHÂN KINH DOANH: ${(company && company.companyName) || ''}`,
+            `Mã số thuế: ${(company && company.taxCode) || ''}`,
+            `Địa chỉ: ${(company && company.address) || ''}`,
+        ].join('\n');
+
+        const aoa = [];
+        const merges = [
+        ];
+        const blocks = [];
+        for (let pageIndex = 0; pageIndex < pageList.length; pageIndex += 1) {
+            const rows = pageList[pageIndex] || [];
+            const isLastPage = pageIndex === pageList.length - 1;
+            const startRow = aoa.length;
+
+            aoa.push([leftHeadBlock, '', '', mauSoBlock]);
+            aoa.push(['', '', '', '']);
+            aoa.push(['', '', '', '']);
+            aoa.push(['', '', '', '']);
+            aoa.push(['SỔ CHI TIẾT DOANH THU BÁN HÀNG HÓA, DỊCH VỤ', '', '', '']);
+            aoa.push([`Kỳ kê khai: Quý ${selectedQuarter}/${selectedYear} - Trang ${pageIndex + 1}/${pageList.length}`, '', '', '']);
+            aoa.push(['', '', '', '']);
+            aoa.push(['Chứng từ', '', 'Diễn giải', 'Số tiền']);
+            aoa.push(['Số hiệu', dateHdr, '', '']);
+            aoa.push(['A', 'B', 'C', '1']);
+            if (pageIndex === 0) aoa.push(['', '', '1. Ngành nghề', '']);
+
+            const sectionRowCount = pageIndex === 0 ? 1 : 0;
+            const dataBodyRowCount = rows.length ? rows.length : 1;
+            const targetDataRows = isLastPage
+                ? Math.max(0, rowsPerPage - 1 - lastPageReduce)
+                : rowsPerPage;
+            const blankRowsCount = isLastPage ? 0 : Math.max(0, targetDataRows - sectionRowCount - dataBodyRowCount);
+
+            if (rows.length) {
+                rows.forEach((item) => {
+                    aoa.push([
+                        item.orderCode || '',
+                        item.dateLabel || '',
+                        item.description || '',
+                        Number(item.amount) || 0,
+                    ]);
+                });
+            } else {
+                aoa.push(['-', '-', 'Chưa có dữ liệu phát sinh trong quý', 0]);
+            }
+            for (let i = 0; i < blankRowsCount; i += 1) aoa.push(['', '', '', '']);
+            const dataEnd = aoa.length - 1;
+
+            const tableTop = startRow + 7;
+            let tableBottom = aoa.length - 1;
+            let totalRow = -1;
+            let s2Start = -1;
+            if (isLastPage) {
+                totalRow = aoa.length;
+                aoa.push(['', '', 'Tổng cộng', Number(totalAmount) || 0]);
+                aoa.push(['', '', 'Thuế GTGT', '']);
+                aoa.push(['', '', 'Thuế TNCN', '']);
+                aoa.push(['', '', 'Tổng số thuế GTGT phải nộp', '']);
+                aoa.push(['', '', 'Tổng số thuế TNCN phải nộp', '']);
+                s2Start = totalRow + 1;
+                tableBottom = aoa.length - 1;
+                aoa.push(['', '', '', '']);
+                const rSign0 = aoa.length;
+                aoa.push(['Ngày .... tháng .... năm ....', '', '', '']);
+                merges.push({ s: { r: rSign0, c: 0 }, e: { r: rSign0, c: 3 } });
+                const rSign1 = aoa.length;
+                aoa.push(['NGƯỜI ĐẠI DIỆN HỘ KINH DOANH/ CÁ NHÂN KINH DOANH', '', '', '']);
+                merges.push({ s: { r: rSign1, c: 0 }, e: { r: rSign1, c: 3 } });
+                const rSign2 = aoa.length;
+                aoa.push(['(Ký, ghi rõ họ tên, đóng dấu (nếu có))', '', '', '']);
+                merges.push({ s: { r: rSign2, c: 0 }, e: { r: rSign2, c: 3 } });
+            }
+
+            merges.push({ s: { r: startRow + 0, c: 0 }, e: { r: startRow + 2, c: 2 } });
+            merges.push({ s: { r: startRow + 0, c: 3 }, e: { r: startRow + 2, c: 3 } });
+            merges.push({ s: { r: startRow + 3, c: 0 }, e: { r: startRow + 3, c: 3 } });
+            merges.push({ s: { r: startRow + 4, c: 0 }, e: { r: startRow + 4, c: 3 } });
+            merges.push({ s: { r: startRow + 5, c: 0 }, e: { r: startRow + 5, c: 3 } });
+            merges.push({ s: { r: startRow + 6, c: 0 }, e: { r: startRow + 6, c: 3 } });
+            merges.push({ s: { r: startRow + 7, c: 0 }, e: { r: startRow + 7, c: 1 } });
+            merges.push({ s: { r: startRow + 7, c: 2 }, e: { r: startRow + 8, c: 2 } });
+            merges.push({ s: { r: startRow + 7, c: 3 }, e: { r: startRow + 8, c: 3 } });
+
+            blocks.push({
+                startRow,
+                tableTop,
+                tableBottom,
+                headLast: startRow + 9,
+                sectionRow: pageIndex === 0 ? startRow + 10 : -1,
+                dataStart: pageIndex === 0 ? startRow + 11 : startRow + 10,
+                dataEnd,
+                totalRow,
+                s2Start,
+                isLastPage,
+            });
+
+            if (!isLastPage) {
+                const usedRows = aoa.length - startRow;
+                const fillerRows = Math.max(0, excelRowsPerPrintedPage - usedRows);
+                for (let i = 0; i < fillerRows; i += 1) aoa.push(['', '', '', '']);
+            }
+        }
+
+        const lastRowIndex = aoa.length - 1;
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!merges'] = merges;
+        ws['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 46 }, { wch: 26 }];
+
+        const enc = XLSX.utils.encode_cell;
+        const fillBlue = { patternType: 'solid', fgColor: { rgb: 'FFCCE8F4' } };
+        const borderThin = {
+            top: { style: 'thin', color: { rgb: 'FF111827' } },
+            bottom: { style: 'thin', color: { rgb: 'FF111827' } },
+            left: { style: 'thin', color: { rgb: 'FF111827' } },
+            right: { style: 'thin', color: { rgb: 'FF111827' } },
+        };
+
+        const ensureCell = (r, c) => {
+            const a = enc({ r, c });
+            if (!ws[a]) ws[a] = { t: 's', v: '' };
+            return ws[a];
+        };
+
+        const mergeCellStyle = (cell, patch) => {
+            if (!cell) return;
+            cell.s = cell.s || {};
+            if (patch.border) cell.s.border = borderThin;
+            if (patch.fill === true) cell.s.fill = fillBlue;
+            else if (patch.fill && typeof patch.fill === 'object') cell.s.fill = patch.fill;
+            if (patch.font) {
+                const next = { ...(cell.s.font || {}) };
+                Object.keys(patch.font).forEach((k) => {
+                    const v = patch.font[k];
+                    if (v !== undefined) next[k] = v;
+                });
+                cell.s.font = next;
+            }
+            if (patch.alignment) cell.s.alignment = { ...(cell.s.alignment || {}), ...patch.alignment };
+        };
+
+        blocks.forEach((b) => {
+            for (let rr = b.tableTop; rr <= b.tableBottom; rr += 1) {
+                for (let cc = 0; cc <= 3; cc += 1) mergeCellStyle(ensureCell(rr, cc), { border: true });
+            }
+            for (let rr = b.tableTop; rr <= b.headLast; rr += 1) {
+                for (let cc = 0; cc <= 3; cc += 1) {
+                    mergeCellStyle(ws[enc({ r: rr, c: cc })] || ensureCell(rr, cc), {
+                        fill: true,
+                        font: { bold: true },
+                        alignment: { vertical: 'center', wrapText: true, horizontal: 'center' },
+                    });
+                }
+            }
+
+            const dMau = enc({ r: b.startRow + 0, c: 3 });
+            if (ws[dMau]) {
+                mergeCellStyle(ws[dMau], {
+                    fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFFFF' } },
+                    font: { bold: true, sz: 11 },
+                    alignment: { horizontal: 'center', vertical: 'top', wrapText: true },
+                });
+            }
+            const leftHeadAddr = enc({ r: b.startRow + 0, c: 0 });
+            if (ws[leftHeadAddr]) {
+                mergeCellStyle(ws[leftHeadAddr], {
+                    alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
+                    fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFFFF' } },
+                });
+            }
+
+            if (!ws['!rows']) ws['!rows'] = [];
+            ws['!rows'][b.startRow + 0] = { hpt: 24 };
+            ws['!rows'][b.startRow + 1] = { hpt: 24 };
+            ws['!rows'][b.startRow + 2] = { hpt: 24 };
+            ws['!rows'][b.startRow + 3] = { hpt: 8 };
+            ws['!rows'][b.startRow + 4] = { hpt: 24 };
+            ws['!rows'][b.startRow + 5] = { hpt: 18 };
+            ws['!rows'][b.startRow + 6] = { hpt: 6 };
+
+            for (let hr = b.startRow + 3; hr <= b.startRow + 6; hr += 1) {
+                for (let hc = 0; hc <= 3; hc += 1) {
+                    const ha = enc({ r: hr, c: hc });
+                    if (ws[ha]) mergeCellStyle(ws[ha], { fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFFFF' } } });
+                }
+            }
+            for (let cc = 0; cc <= 3; cc += 1) {
+                const ta = enc({ r: b.startRow + 4, c: cc });
+                if (ws[ta]) {
+                    mergeCellStyle(ws[ta], {
+                        font: { bold: true, sz: 13 },
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                    });
+                }
+                const ka = enc({ r: b.startRow + 5, c: cc });
+                if (ws[ka]) {
+                    mergeCellStyle(ws[ka], {
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                    });
+                }
+            }
+
+            if (b.sectionRow >= 0) {
+                const sec = enc({ r: b.sectionRow, c: 2 });
+                if (ws[sec]) mergeCellStyle(ws[sec], { font: { bold: true } });
+            }
+
+            for (let rr = b.dataStart; rr <= b.tableBottom; rr += 1) {
+                const a0 = ws[enc({ r: rr, c: 0 })];
+                if (a0) mergeCellStyle(a0, { alignment: { horizontal: 'left', vertical: 'top', wrapText: true } });
+                const a1 = ws[enc({ r: rr, c: 1 })];
+                if (a1) mergeCellStyle(a1, { alignment: { horizontal: 'center', vertical: 'top', wrapText: true } });
+                const a2 = ws[enc({ r: rr, c: 2 })];
+                if (a2) mergeCellStyle(a2, { alignment: { horizontal: 'left', vertical: 'top', wrapText: true } });
+                const cD = ws[enc({ r: rr, c: 3 })];
+                if (!cD || cD.v === '' || cD.v == null) continue;
+                const raw = String(cD.v).replace(/\s/g, '');
+                const isAmt = cD.t === 'n' || (cD.t === 's' && /^[\d.]+$/.test(raw) && raw !== '');
+                if (isAmt) {
+                    mergeCellStyle(cD, { alignment: { horizontal: 'right', vertical: 'top' } });
+                    if (cD.t === 'n') cD.z = '#,##0';
+                }
+            }
+
+            if (b.totalRow >= 0) {
+                const tLabel = ws[enc({ r: b.totalRow, c: 2 })];
+                const tAmt = ws[enc({ r: b.totalRow, c: 3 })];
+                if (tLabel) mergeCellStyle(tLabel, { font: { bold: false } });
+                if (tAmt) mergeCellStyle(tAmt, { font: { bold: false }, alignment: { horizontal: 'right' } });
+                if (b.dataEnd >= b.dataStart && tAmt) {
+                    const sumStart = XLSX.utils.encode_cell({ r: b.dataStart, c: 3 });
+                    const sumEnd = XLSX.utils.encode_cell({ r: b.dataEnd, c: 3 });
+                    tAmt.t = 'n';
+                    tAmt.f = `SUM(${sumStart}:${sumEnd})`;
+                    tAmt.z = '#,##0';
+                }
+            }
+            if (b.s2Start >= 0) {
+                const gtgt = ws[enc({ r: b.s2Start + 0, c: 2 })];
+                const tncn = ws[enc({ r: b.s2Start + 1, c: 2 })];
+                const tongGtgt = ws[enc({ r: b.s2Start + 2, c: 2 })];
+                const tongTncn = ws[enc({ r: b.s2Start + 3, c: 2 })];
+                if (gtgt) mergeCellStyle(gtgt, { font: { bold: false } });
+                if (tncn) mergeCellStyle(tncn, { font: { bold: false } });
+                if (tongGtgt) mergeCellStyle(tongGtgt, { font: { bold: true } });
+                if (tongTncn) mergeCellStyle(tongTncn, { font: { bold: true } });
+            }
+
+            if (b.isLastPage) {
+                for (let sr = lastRowIndex - 2; sr <= lastRowIndex; sr += 1) {
+                    const sa = enc({ r: sr, c: 0 });
+                    if (ws[sa]) mergeCellStyle(ws[sa], { alignment: { horizontal: 'center', vertical: 'center', wrapText: true } });
+                }
+            }
+        });
+
+        ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRowIndex, c: 3 } });
+
+        ws['!sheetViews'] = [{ showGridLines: false }];
+
+        ws['!margins'] = { left: 0.39, right: 0.39, top: 0.42, bottom: 0.42, header: 0.2, footer: 0.2 };
+        ws['!pageSetup'] = {
+            paperSize: 9,
+            orientation: 'portrait',
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+        };
+
+        return ws;
+    }
+
+    exportTaxDeclarationExcel() {
+        const XLSX = typeof window !== 'undefined' ? window.XLSX : null;
+        if (!XLSX || !XLSX.utils || !XLSX.writeFile) {
+            this.showNotification('Thư viện Excel chưa tải xong. Tải lại trang và thử lại.', 'error');
+            return;
+        }
+        const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
+        const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
+        const selectedYear = String(Number(this.taxDeclarationYear) || new Date().getFullYear());
+        const records = this.getTaxDeclarationRecordsForQuarter(selectedYear, selectedQuarter);
+        const rowsPerPage = 27;
+        const lastPageReduce = 2;
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce, { firstPageCapacityDelta: -1 });
+        const totalAmount = records.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const company = this.getCompanySettings();
+        const ctx = {
+            selectedForm,
+            selectedQuarter,
+            selectedYear,
+            company,
+            totalAmount,
+            rowsPerPage,
+            lastPageReduce,
+        };
+        const wb = XLSX.utils.book_new();
+        const ws = this.buildTaxDeclarationExcelWorksheet(pages, ctx);
+        if (!ws) {
+            this.showNotification('Không tạo được sheet Excel.', 'error');
+            return;
+        }
+        XLSX.utils.book_append_sheet(wb, ws, 'So-chi-tiet-DT');
+        const fname = `So-chi-tiet-thue-${selectedForm}-Q${selectedQuarter}-${selectedYear}.xlsx`;
+        XLSX.writeFile(wb, fname, { cellStyles: true });
+        this.showNotification('Đã xuất Excel (một sheet duy nhất, A4 dọc). In: Ctrl+P — Excel tự chia trang khi nội dung dài.', 'success');
+    }
+
     getTaxDeclarationContent() {
         const selectedForm = this.taxDeclarationFormType === 's2a' ? 's2a' : 's1a';
         const selectedQuarter = String(Math.min(4, Math.max(1, Number(this.taxDeclarationQuarter) || 1)));
@@ -7571,7 +7952,7 @@ class HamobileBanhang {
         const company = this.getCompanySettings();
         const rowsPerPage = 27;
         const lastPageReduce = 2;
-        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce);
+        const pages = this.buildTaxDeclarationPages(records, rowsPerPage, rowsPerPage - 1 - lastPageReduce, { firstPageCapacityDelta: -1 });
         const documentPagesHtml = this.getTaxDeclarationDocumentHtml({
             selectedForm,
             selectedQuarter,
@@ -7597,6 +7978,7 @@ class HamobileBanhang {
                     .tax-toolbar button{cursor:pointer;font-weight:600}
                     .tax-print-btn{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:none}
                     .tax-export-btn{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none}
+                    .tax-excel-btn{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none}
                     .tax-sheet-wrap{background:linear-gradient(180deg,#fffbeb 0%,#fff 40%);border:1px solid #fcd34d;padding:16px;border-radius:12px;box-shadow:0 4px 12px rgba(245,158,11,.12)}
                     .tax-page{page-break-after:always}
                     .tax-page:last-child{page-break-after:auto}
@@ -7604,14 +7986,25 @@ class HamobileBanhang {
                     .tax-pages-root{font-family:"Times New Roman",Times,serif}
                     .tax-meta{display:flex;justify-content:space-between;gap:18px;margin-top:1mm}
                     .tax-meta p{margin:3px 0}
+                    .tax-meta-right{display:flex;justify-content:flex-end;align-items:flex-start;flex:0 1 auto;max-width:55%;line-height:1.35}
+                    .tax-meta-form-block{text-align:center;width:fit-content;max-width:100%}
+                    .tax-meta-form-block p{margin:1px 0}
                     .tax-doc-title{text-align:center;font-weight:700;margin-top:10px;font-size:17px}
                     .tax-doc-sub{text-align:center;margin-top:2px;font-size:14px}
                     .tax-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12px}
+                    .tax-table col.tax-col-order{width:68px}
+                    .tax-table col.tax-col-date{width:82px}
+                    .tax-table col.tax-col-amount{width:96px}
                     .tax-cell{border:1px solid #111827;padding:4px 6px;font-size:13px;line-height:1.2;vertical-align:top}
-                    .tax-table tbody tr{height:7mm}
+                    .tax-table .tax-col-order,.tax-table .tax-col-date{padding:3px 4px;font-size:12px;line-height:1.2}
+                    .tax-table .tax-col-order{word-break:break-all}
+                    .tax-table thead .tax-th-header,.tax-table thead .tax-th-code{background:#cce8f4;font-weight:700}
+                    .tax-table thead .tax-th-code{font-size:12px;padding:2px 6px;line-height:1.15}
+                    .tax-table tbody tr{min-height:7mm}
                     .tax-cell-center{text-align:center}
                     .tax-cell-right{text-align:right}
-                    .tax-cell-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .tax-cell-desc{white-space:normal;word-wrap:break-word;overflow-wrap:break-word;vertical-align:top}
+                    .tax-cell-nganh-nghe{font-weight:700}
                     .tax-footer-label{font-weight:700}
                     .tax-sign{display:flex;justify-content:flex-end;margin-top:8px}
                     .tax-sign-box{min-width:320px;text-align:center}
@@ -7640,6 +8033,7 @@ class HamobileBanhang {
                     </div>
                     <div class="tax-toolbar-left">
                         <button type="button" class="tax-export-btn" onclick="app.exportTaxDeclarationPdf()">📄 Xuất PDF</button>
+                        <button type="button" class="tax-excel-btn" onclick="app.exportTaxDeclarationExcel()">📊 Xuất Excel</button>
                         <button type="button" class="tax-print-btn" onclick="app.printTaxDeclaration()">🖨 In mẫu A4</button>
                     </div>
                 </div>
