@@ -8177,10 +8177,23 @@ class HamobileBanhang {
         const totalTransactions = finalizedOrders.length + repairsReturned.length;
         const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
-        // Công nợ thực tế: dùng getActualDebtForCustomer (đồng bộ với trang Công nợ, gồm cả SC)
-        const debtCustomers = this.getCustomersWithDebt();
-        const totalDebt = debtCustomers.reduce((sum, c) => sum + this.getActualDebtForCustomer(c), 0);
-        const debtCustomerCount = debtCustomers.length;
+        // Công nợ thực tế: 1 pass qua đơn + SC — không gọi getCustomersWithDebt để tránh O(n²)
+        const _debtIds = new Set();
+        const totalDebt = (() => {
+            let s = 0;
+            (this.demoData.orders || []).forEach(o => {
+                const paid = o.amountPaid != null ? o.amountPaid : (o.paymentStatus === 'Đã thanh toán' ? (o.total || 0) : 0);
+                const d = Math.max(0, (o.total || 0) - paid);
+                if (d > 0) { s += d; _debtIds.add(o.customerId || o.customerName || '_'); }
+            });
+            (this.demoData.repairs || []).forEach(r => {
+                if ((r.status || '') !== 'Đã trả') return;
+                const d = Math.max(0, (Number(r.repairCost) || 0) - (Number(r.amountPaid) || 0));
+                if (d > 0) { s += d; _debtIds.add(r.customerId || r.customerName || '_'); }
+            });
+            return s;
+        })();
+        const debtCustomerCount = _debtIds.size;
         const paidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Đã thanh toán').length;
         const unpaidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Công nợ').length;
         const completedOrders = finalizedOrders.filter((o) => o.status === 'Hoàn thành').length;
