@@ -2816,6 +2816,33 @@ select.edit-order-inp{
   align-self:stretch;
 }
 
+/* Scroll wrapper — mobile: chart cuộn ngang thay vì bị squish */
+#main-content.page-dashboard .dashboard-trend-bar-chart-scroll{
+  width:100%;
+}
+@media(max-width:640px){
+  #main-content.page-dashboard .dashboard-trend-bar-chart-scroll{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    /* padding-top giữ chỗ cho bar-tip không bị clip bởi overflow */
+    padding-top:26px;
+    margin-top:-26px;
+  }
+  /* Mỗi cột giữ chiều rộng tối thiểu để bar + nhãn đọc được */
+  #main-content.page-dashboard .dashboard-trend-bar-chart-scroll .dashboard-trend-bar-col{
+    flex:0 0 34px;
+    min-width:34px;
+  }
+  /* Thanh cuộn nhỏ gọn */
+  #main-content.page-dashboard .dashboard-trend-bar-chart-scroll::-webkit-scrollbar{
+    height:4px;
+  }
+  #main-content.page-dashboard .dashboard-trend-bar-chart-scroll::-webkit-scrollbar-thumb{
+    background:#d1d5db;
+    border-radius:2px;
+  }
+}
+
 #main-content.page-dashboard .dashboard-trend-donut-wrap{
   display:flex;
   justify-content:center;

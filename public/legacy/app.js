@@ -8301,8 +8301,10 @@ class HamobileBanhang {
                 <div class="dashboard-trend-row dashboard-trend-row--2-1">
                     <div class="dashboard-trend-panel">
                         <h3 class="dashboard-trend-panel-title">📈 Doanh thu theo thời gian (chuẩn báo cáo)</h3>
-                        <div class="${trendBarChartClass}">
-                            ${chartBarsHtml}
+                        <div class="dashboard-trend-bar-chart-scroll">
+                            <div class="${trendBarChartClass}">
+                                ${chartBarsHtml}
+                            </div>
                         </div>
                     </div>
                     <div class="dashboard-trend-panel">
