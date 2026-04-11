@@ -2164,51 +2164,40 @@ class HamobileBanhang {
         const yesterdayProfit = yesterdayOrderProfit + yesterdayRepairProfit;
         const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
         const orderChange = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
+        const profitChange = yesterdayProfit > 0 ? ((todayProfit - yesterdayProfit) / yesterdayProfit * 100).toFixed(1) : (todayProfit > 0 ? '100' : '0');
+        const _kpiDelta = (cur, prev, chg, unit = '%') => {
+            if (prev > 0) return `<span class="${cur >= prev ? 'kpi-delta--up' : 'kpi-delta--dn'}">${cur >= prev ? '↗ +' : '↘ '}${Math.abs(+chg)}${unit} <span class="kpi-vs">hôm qua</span></span>`;
+            return cur > 0 ? `<span class="kpi-delta--up">Có dữ liệu</span>` : `<span class="kpi-delta--nil">—</span>`;
+        };
         return `
             <div class="dashboard-page-root">
                 <div class="dashboard-main-column">
                 <div class="dashboard-layout">
                     <div class="dashboard-main">
-                <div class="stats-grid">
-                    <div class="stat-card revenue">
-                        <div class="stat-header">
-                            <span class="stat-title">Doanh thu hôm nay</span>
-                            <span class="stat-icon">💵</span>
-                        </div>
-                        <div class="stat-value">${todayRevenue.toLocaleString('vi-VN')} VNĐ</div>
-                        <div class="stat-change ${todayRevenue >= yesterdayRevenue ? 'positive' : 'negative'}">${yesterdayRevenue > 0 ? (todayRevenue >= yesterdayRevenue ? '↗' : '↘') + ' ' + revenueChange + '% so với hôm qua' : (todayOrders.length ? 'Có đơn hôm nay' : 'Chưa có đơn')}</div>
+                <div class="kpi-grid">
+                    <div class="kpi-card kpi-card--green">
+                        <span class="kpi-icon">💰</span>
+                        <div class="kpi-num">${todayRevenue.toLocaleString('vi-VN')}<span class="kpi-suffix"> đ</span></div>
+                        <div class="kpi-delta">${_kpiDelta(todayRevenue, yesterdayRevenue, revenueChange)}</div>
+                        <div class="kpi-lbl">Doanh thu hôm nay</div>
                     </div>
-                    <div class="stat-card orders">
-                        <div class="stat-header">
-                            <span class="stat-title">Đơn hàng mới</span>
-                            <span class="stat-icon">🧾</span>
-                        </div>
-                        <div class="stat-value">${todayOrders.length}</div>
-                        <div class="stat-change ${todayOrders.length >= yesterdayOrders.length ? 'positive' : 'negative'}">${yesterdayOrders.length > 0 ? (todayOrders.length >= yesterdayOrders.length ? '↗' : '↘') + ' ' + orderChange + '% so với hôm qua' : (todayOrders.length ? 'Có đơn' : 'Chưa có đơn')}</div>
+                    <div class="kpi-card kpi-card--blue">
+                        <span class="kpi-icon">📈</span>
+                        <div class="kpi-num">${todayProfit.toLocaleString('vi-VN')}<span class="kpi-suffix"> đ</span></div>
+                        <div class="kpi-delta">${_kpiDelta(todayProfit, yesterdayProfit, profitChange)}</div>
+                        <div class="kpi-lbl">Lợi nhuận hôm nay</div>
                     </div>
-                    <div class="stat-card customers">
-                        <div class="stat-header">
-                            <span class="stat-title">Khách hàng</span>
-                            <span class="stat-icon">🧑‍🤝‍🧑</span>
-                        </div>
-                        <div class="stat-value">${customers.length}</div>
-                        <div class="stat-change positive">Tổng ${customers.length} khách hàng</div>
+                    <div class="kpi-card kpi-card--amber">
+                        <span class="kpi-icon">🛒</span>
+                        <div class="kpi-num">${todayOrders.length}</div>
+                        <div class="kpi-delta">${_kpiDelta(todayOrders.length, yesterdayOrders.length, orderChange)}</div>
+                        <div class="kpi-lbl">Đơn hàng hôm nay</div>
                     </div>
-                    <div class="stat-card products">
-                        <div class="stat-header">
-                            <span class="stat-title">Sản phẩm</span>
-                            <span class="stat-icon">🏷️</span>
-                        </div>
-                        <div class="stat-value">${products.length}</div>
-                        <div class="stat-change positive">Tổng ${products.length} mặt hàng</div>
-                    </div>
-                    <div class="stat-card info">
-                        <div class="stat-header">
-                            <span class="stat-title">Lợi nhuận hôm nay</span>
-                            <span class="stat-icon">💹</span>
-                        </div>
-                        <div class="stat-value">${todayProfit.toLocaleString('vi-VN')} VNĐ</div>
-                        <div class="stat-change ${todayProfit >= yesterdayProfit ? 'positive' : 'negative'}">${yesterdayProfit > 0 ? (todayProfit >= yesterdayProfit ? '↗' : '↘') + ' ' + ((todayProfit - yesterdayProfit) / yesterdayProfit * 100).toFixed(1) + '% so với hôm qua' : (todayProfit > 0 ? 'Có lợi nhuận' : 'Chưa có')}</div>
+                    <div class="kpi-card kpi-card--violet">
+                        <span class="kpi-icon">👤</span>
+                        <div class="kpi-num">${customers.length}</div>
+                        <div class="kpi-delta"><span class="kpi-delta--nil">📦 ${products.length} sản phẩm trong kho</span></div>
+                        <div class="kpi-lbl">Tổng khách hàng</div>
                     </div>
                 </div>
                 <div class="quick-actions">
@@ -8182,6 +8171,10 @@ class HamobileBanhang {
                     `<option value="${val}"${val === periodKey ? ' selected' : ''}>${lab}</option>`
             )
             .join('');
+        const periodSegHtml = periodSelectOptions
+            .map(([val, lab]) =>
+                `<button type="button" class="trp-pill${val === periodKey ? ' trp-pill--on' : ''}" onclick="app.setDashboardTrendPeriod('${val}')" aria-pressed="${val === periodKey}">${lab}</button>`
+            ).join('');
 
         const orders = allOrders.filter((o) => this.orderDateInRange(o, range.from, range.to));
         const repairsInRange = allRepairs.filter((r) => this.repairDateInRange(r, range.from, range.to));
@@ -8286,16 +8279,17 @@ class HamobileBanhang {
 
         const paidArc = ((paidOrders / orderCountSafe) * 314).toFixed(1);
         const unpaidArc = ((unpaidOrders / orderCountSafe) * 220).toFixed(1);
+        const paidPct = finalizedOrders.length > 0 ? Math.round(paidOrders / finalizedOrders.length * 100) : 0;
 
         const chartBarsHtml =
             chartBuckets.length > 0
                 ? chartBuckets
                       .map((item, index) => {
                           const height = (item.revenue / maxChartRev) * 160;
-                          const color =
-                              index === chartBuckets.length - 1 ? '#10b981' : '#6b7280';
+                          const isLast = index === chartBuckets.length - 1;
+                          const color = isLast ? '#22c55e' : '#cbd5e1';
                           return `
-                                    <div class="dashboard-trend-bar-col">
+                                    <div class="dashboard-trend-bar-col${isLast ? ' dashboard-trend-bar-col--active' : ''}">
                                         <div class="dashboard-trend-bar" style="background:${color};height:${Math.max(4, height)}px;">
                                             <span class="dashboard-trend-bar-tip">${this.formatTrendChartTip(item.revenue)}</span>
                                         </div>
@@ -8314,8 +8308,8 @@ class HamobileBanhang {
                             <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to}</p>
                         </div>
                         <div class="dashboard-trend-period-wrap">
-                            <label class="dashboard-trend-period-label" for="dashboard-trend-period">Kỳ</label>
-                            <select id="dashboard-trend-period" class="dashboard-trend-period-select" onchange="app.setDashboardTrendPeriod(this.value)">${periodSelectHtml}</select>
+                            <div class="trp-seg" role="group" aria-label="Chọn kỳ báo cáo">${periodSegHtml}</div>
+                            <select id="dashboard-trend-period" class="dashboard-trend-period-select trp-select-hidden" onchange="app.setDashboardTrendPeriod(this.value)" aria-hidden="true">${periodSelectHtml}</select>
                         </div>
                     </div>
                 </div>
@@ -8350,22 +8344,33 @@ class HamobileBanhang {
                         <h3 class="dashboard-trend-panel-title">💳 Thanh toán đơn (trong kỳ)</h3>
                         <div class="dashboard-trend-donut-wrap">
                             <div class="dashboard-trend-donut">
-                                <svg width="120" height="120" style="transform: rotate(-90deg);" aria-hidden="true">
-                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="12"></circle>
-                                    <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="12"
-                                            stroke-dasharray="${paidArc} 314" stroke-linecap="round"></circle>
-                                    <circle cx="60" cy="60" r="35" fill="none" stroke="#f59e0b" stroke-width="8"
-                                            stroke-dasharray="${unpaidArc} 220" stroke-linecap="round"></circle>
+                                <svg width="140" height="140" style="transform:rotate(-90deg);" aria-hidden="true">
+                                    <defs>
+                                        <linearGradient id="donutGradPaid" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="#22c55e"/>
+                                            <stop offset="100%" stop-color="#16a34a"/>
+                                        </linearGradient>
+                                        <linearGradient id="donutGradDebt" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="#fbbf24"/>
+                                            <stop offset="100%" stop-color="#f59e0b"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <circle cx="70" cy="70" r="58" fill="none" stroke="#f1f5f9" stroke-width="13"></circle>
+                                    <circle cx="70" cy="70" r="58" fill="none" stroke="url(#donutGradPaid)" stroke-width="13"
+                                            stroke-dasharray="${((paidOrders / orderCountSafe) * 364).toFixed(1)} 364" stroke-linecap="round"></circle>
+                                    <circle cx="70" cy="70" r="42" fill="none" stroke="url(#donutGradDebt)" stroke-width="8"
+                                            stroke-dasharray="${((unpaidOrders / orderCountSafe) * 264).toFixed(1)} 264" stroke-linecap="round"></circle>
                                 </svg>
                                 <div class="dashboard-trend-donut-center">
-                                    <div class="dashboard-trend-donut-num">${finalizedOrders.length}</div>
-                                    <div class="dashboard-trend-donut-cap">Đơn đã chốt</div>
+                                    <div class="dashboard-trend-donut-pct">${paidPct}%</div>
+                                    <div class="dashboard-trend-donut-num">${finalizedOrders.length} đơn</div>
+                                    <div class="dashboard-trend-donut-cap">đã thanh toán</div>
                                 </div>
                             </div>
                         </div>
                         <div class="dashboard-trend-legend">
-                            <div><span class="dashboard-trend-dot dashboard-trend-dot--green"></span>Đã TT: ${paidOrders}</div>
-                            <div><span class="dashboard-trend-dot dashboard-trend-dot--amber"></span>Công nợ: ${unpaidOrders}</div>
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--green"></span>Đã TT: <strong>${paidOrders}</strong></div>
+                            <div><span class="dashboard-trend-dot dashboard-trend-dot--amber"></span>Công nợ: <strong>${unpaidOrders}</strong></div>
                         </div>
                     </div>
                 </div>

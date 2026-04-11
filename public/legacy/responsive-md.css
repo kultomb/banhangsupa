@@ -2482,6 +2482,79 @@ select.edit-order-inp{
   gap:clamp(16px,2.2vw,24px);
 }
 
+/* ======================================================
+   KPI CARDS — Modern SaaS Style (Stripe/Vercel inspired)
+   ====================================================== */
+#main-content.page-dashboard .kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  margin-bottom:20px;
+}
+@media(max-width:900px){
+  #main-content.page-dashboard .kpi-grid{grid-template-columns:repeat(2,1fr);}
+}
+@media(max-width:480px){
+  #main-content.page-dashboard .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;}
+}
+
+#main-content.page-dashboard .kpi-card{
+  background:#fff;
+  border-radius:16px;
+  padding:18px 18px 16px;
+  border:1px solid #f1f5f9;
+  box-shadow:0 1px 3px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.03);
+  position:relative;
+  overflow:hidden;
+  display:flex;flex-direction:column;gap:2px;
+  min-width:0;
+}
+/* Accent bar top */
+#main-content.page-dashboard .kpi-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0;
+}
+#main-content.page-dashboard .kpi-card--green::before{background:#22c55e;}
+#main-content.page-dashboard .kpi-card--blue::before{background:#3b82f6;}
+#main-content.page-dashboard .kpi-card--amber::before{background:#f59e0b;}
+#main-content.page-dashboard .kpi-card--violet::before{background:#8b5cf6;}
+
+/* Big background icon */
+#main-content.page-dashboard .kpi-icon{
+  position:absolute;right:14px;top:10px;
+  font-size:32px;opacity:.08;line-height:1;pointer-events:none;
+  user-select:none;
+}
+
+/* Number — most prominent */
+#main-content.page-dashboard .kpi-num{
+  font-size:clamp(20px,3vw,28px);
+  font-weight:800;
+  color:#0f172a;
+  letter-spacing:-0.5px;
+  line-height:1.05;
+  margin-top:18px;
+  word-break:break-all;
+}
+#main-content.page-dashboard .kpi-suffix{
+  font-size:13px;font-weight:500;color:#94a3b8;letter-spacing:0;
+}
+
+/* Delta / change row */
+#main-content.page-dashboard .kpi-delta{
+  font-size:12px;font-weight:500;min-height:18px;
+  display:flex;align-items:center;gap:2px;margin-top:4px;
+}
+#main-content.page-dashboard .kpi-delta--up{color:#16a34a;font-weight:600;}
+#main-content.page-dashboard .kpi-delta--dn{color:#dc2626;font-weight:600;}
+#main-content.page-dashboard .kpi-delta--nil{color:#94a3b8;}
+#main-content.page-dashboard .kpi-vs{color:#94a3b8;font-weight:400;}
+
+/* Label — least prominent */
+#main-content.page-dashboard .kpi-lbl{
+  font-size:11px;color:#64748b;font-weight:500;margin-top:6px;
+  text-transform:uppercase;letter-spacing:.4px;
+}
+
 #main-content.page-dashboard .quick-actions{
   margin-top:0;
   padding:clamp(22px,2.5vw,28px);
@@ -2534,35 +2607,29 @@ select.edit-order-inp{
 
 #main-content.page-dashboard .dashboard-trend-header{
   position:relative;
-  margin:0 0 28px;
-  padding:24px 22px 22px 26px;
+  margin:0 0 20px;
+  padding:20px 20px 16px;
   border-radius:16px;
-  border:1px solid rgba(5,150,105,.2);
-  background:linear-gradient(145deg,#ffffff 0%,#f0fdf4 42%,#ecfdf5 100%);
-  box-shadow:
-    0 4px 28px rgba(5,150,105,.1),
-    0 1px 3px rgba(15,23,42,.06);
+  border:1px solid #f1f5f9;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.03);
   overflow:hidden;
 }
 
 #main-content.page-dashboard .dashboard-trend-header::before{
   content:'';
   position:absolute;
-  top:0;
-  left:0;
-  right:0;
-  height:4px;
-  background:linear-gradient(90deg,#047857 0%,#059669 45%,#34d399 100%);
-  opacity:.95;
+  top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#22c55e 0%,#3b82f6 100%);
 }
 
 #main-content.page-dashboard .dashboard-trend-header-row{
   position:relative;
   display:flex;
   flex-wrap:wrap;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
-  gap:20px;
+  gap:16px;
 }
 
 #main-content.page-dashboard .dashboard-trend-header-row > div:first-child{
@@ -2574,40 +2641,71 @@ select.edit-order-inp{
 #main-content.page-dashboard .dashboard-trend-title{
   margin:0;
   padding:0;
-  font-size:clamp(1.02rem,1.85vw,1.32rem);
-  font-weight:800;
-  letter-spacing:-0.03em;
+  font-size:clamp(1rem,1.7vw,1.2rem);
+  font-weight:700;
+  letter-spacing:-0.02em;
   line-height:1.2;
-  color:#065f46;
+  color:#0f172a;
   border-bottom:none;
 }
 
 #main-content.page-dashboard .dashboard-trend-subtitle{
   display:inline-block;
-  margin:12px 0 0;
-  padding:8px 16px;
+  margin:8px 0 0;
+  padding:4px 12px;
   max-width:100%;
-  font-size:13px;
-  font-weight:600;
+  font-size:12px;
+  font-weight:500;
   line-height:1.5;
-  color:#166534;
+  color:#64748b;
   font-variant-numeric:tabular-nums;
-  background:rgba(255,255,255,.72);
-  border:1px solid rgba(167,243,208,.85);
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
   border-radius:999px;
-  box-shadow:0 1px 2px rgba(5,150,105,.06);
 }
 
+/* Segmented period control */
 #main-content.page-dashboard .dashboard-trend-period-wrap{
   display:flex;
-  align-items:center;
-  gap:12px;
+  align-items:flex-start;
   flex-shrink:0;
-  padding:12px 16px;
-  border-radius:14px;
-  background:rgba(255,255,255,.88);
-  border:1px solid rgba(5,150,105,.14);
-  box-shadow:0 2px 14px rgba(5,150,105,.07);
+  padding:0;
+  background:none;
+  border:none;
+  box-shadow:none;
+}
+#main-content.page-dashboard .trp-seg{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#main-content.page-dashboard .trp-pill{
+  padding:6px 13px;
+  border-radius:999px;
+  border:1px solid #e2e8f0;
+  background:#fff;
+  font-size:12px;
+  font-weight:500;
+  color:#64748b;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:background .12s,color .12s,border-color .12s,box-shadow .12s;
+  font-family:inherit;
+  line-height:1.4;
+}
+#main-content.page-dashboard .trp-pill:hover:not(.trp-pill--on){
+  background:#f8fafc;
+  color:#1e293b;
+  border-color:#cbd5e1;
+}
+#main-content.page-dashboard .trp-pill--on{
+  background:#0f172a;
+  color:#fff;
+  border-color:#0f172a;
+  box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+#main-content.page-dashboard .trp-select-hidden{
+  display:none;
 }
 
 #main-content.page-dashboard .dashboard-trend-period-label{
@@ -2779,6 +2877,13 @@ select.edit-order-inp{
   border-radius:4px 4px 0 0;
   margin-bottom:8px;
   position:relative;
+  transition:filter .15s,opacity .15s;
+}
+#main-content.page-dashboard .dashboard-trend-bar-col:hover .dashboard-trend-bar{
+  filter:brightness(.88);
+}
+#main-content.page-dashboard .dashboard-trend-bar-col--active .dashboard-trend-bar{
+  box-shadow:0 2px 8px rgba(34,197,94,.3);
 }
 
 #main-content.page-dashboard .dashboard-trend-bar-tip{
@@ -2787,9 +2892,21 @@ select.edit-order-inp{
   left:50%;
   transform:translateX(-50%);
   font-size:10px;
-  color:#374151;
-  font-weight:600;
+  color:#fff;
+  font-weight:700;
   white-space:nowrap;
+  background:#1e293b;
+  padding:2px 6px;
+  border-radius:4px;
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+  pointer-events:none;
+}
+#main-content.page-dashboard .dashboard-trend-bar-tip::after{
+  content:'';
+  position:absolute;
+  top:100%;left:50%;transform:translateX(-50%);
+  border:4px solid transparent;
+  border-top-color:#1e293b;
 }
 
 #main-content.page-dashboard .dashboard-trend-bar-label{
@@ -2853,8 +2970,8 @@ select.edit-order-inp{
 
 #main-content.page-dashboard .dashboard-trend-donut{
   position:relative;
-  width:120px;
-  height:120px;
+  width:140px;
+  height:140px;
 }
 
 #main-content.page-dashboard .dashboard-trend-donut-center{
@@ -2863,18 +2980,26 @@ select.edit-order-inp{
   left:50%;
   transform:translate(-50%,-50%);
   text-align:center;
+  pointer-events:none;
 }
 
-#main-content.page-dashboard .dashboard-trend-donut-num{font-size:18px;font-weight:700;color:#374151;}
-#main-content.page-dashboard .dashboard-trend-donut-cap{font-size:11px;color:#6b7280;}
+#main-content.page-dashboard .dashboard-trend-donut-pct{
+  font-size:26px;font-weight:800;color:#0f172a;letter-spacing:-1px;line-height:1;
+}
+#main-content.page-dashboard .dashboard-trend-donut-num{font-size:12px;font-weight:600;color:#374151;margin-top:2px;}
+#main-content.page-dashboard .dashboard-trend-donut-cap{font-size:10px;color:#94a3b8;margin-top:1px;}
 
 #main-content.page-dashboard .dashboard-trend-legend{
-  text-align:center;
+  display:flex;
+  justify-content:center;
+  gap:16px;
   font-size:13px;
   color:#374151;
+  flex-wrap:wrap;
 }
-
-#main-content.page-dashboard .dashboard-trend-legend > div{margin-bottom:6px;}
+#main-content.page-dashboard .dashboard-trend-legend > div{
+  display:flex;align-items:center;gap:6px;
+}
 
 #main-content.page-dashboard .dashboard-trend-dot{
   display:inline-block;
