@@ -2983,6 +2983,94 @@ select.edit-order-inp{
 
 #main-content.page-dashboard .dashboard-trend-summary--info h4{color:#0369a1;}
 
+/* ======================================================
+   DTS — Redesigned summary cards (Trong kỳ / Cần lưu ý / Gợi ý)
+   ====================================================== */
+#main-content.page-dashboard .dts-card{
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.05);
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+#main-content.page-dashboard .dts-accent{height:4px;flex-shrink:0;}
+#main-content.page-dashboard .dts-card--ok   .dts-accent{background:linear-gradient(90deg,#10b981,#34d399);}
+#main-content.page-dashboard .dts-card--warn .dts-accent{background:linear-gradient(90deg,#ef4444,#f97316);}
+#main-content.page-dashboard .dts-card--tip  .dts-accent{background:linear-gradient(90deg,#3b82f6,#8b5cf6);}
+
+#main-content.page-dashboard .dts-body{padding:16px;flex:1;display:flex;flex-direction:column;gap:10px;}
+
+#main-content.page-dashboard .dts-head{display:flex;align-items:center;gap:8px;}
+#main-content.page-dashboard .dts-head-icon{font-size:18px;line-height:1;}
+#main-content.page-dashboard .dts-head-title{font-size:14px;font-weight:700;color:#111827;flex:1;}
+
+/* Badge đếm trên Cần lưu ý */
+#main-content.page-dashboard .dts-badge{
+  font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;
+}
+#main-content.page-dashboard .dts-badge--red{background:#fef2f2;color:#dc2626;}
+
+/* ── Stat grid (Trong kỳ) ── */
+#main-content.page-dashboard .dts-stat-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+}
+#main-content.page-dashboard .dts-stat{
+  background:#f9fafb;border-radius:10px;padding:10px 6px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+#main-content.page-dashboard .dts-stat--green .dts-stat-val{color:#059669;}
+#main-content.page-dashboard .dts-stat-val{font-size:clamp(16px,2.8vw,22px);font-weight:800;line-height:1;}
+#main-content.page-dashboard .dts-stat-lbl{font-size:10px;color:#6b7280;line-height:1.2;text-align:center;}
+
+/* KV list (Trong kỳ) */
+#main-content.page-dashboard .dts-kv-list{display:flex;flex-direction:column;gap:0;}
+#main-content.page-dashboard .dts-kv{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;border-top:1px solid #f3f4f6;font-size:12px;
+}
+#main-content.page-dashboard .dts-kv-lbl{color:#6b7280;}
+#main-content.page-dashboard .dts-kv-val{font-weight:700;font-size:13px;}
+#main-content.page-dashboard .dts-kv-val--green{color:#059669;}
+
+/* ── Alert list (Cần lưu ý) ── */
+#main-content.page-dashboard .dts-alert-list{display:flex;flex-direction:column;gap:6px;}
+#main-content.page-dashboard .dts-alert{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:9px;
+  background:#fff8f7;border-left:3px solid #e5e7eb;
+  transition:border-color .15s;
+}
+#main-content.page-dashboard .dts-alert--active{
+  background:#fef2f2;border-left-color:#ef4444;
+}
+#main-content.page-dashboard .dts-alert-num{
+  font-size:16px;font-weight:800;color:#dc2626;
+  min-width:38px;text-align:center;flex-shrink:0;
+}
+#main-content.page-dashboard .dts-alert-num--sm{font-size:12px;}
+#main-content.page-dashboard .dts-alert-info{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;}
+#main-content.page-dashboard .dts-alert-label{font-size:12px;color:#374151;font-weight:600;line-height:1.3;}
+#main-content.page-dashboard .dts-alert-sub{font-size:10px;color:#9ca3af;}
+
+/* ── Action list (Gợi ý) ── */
+#main-content.page-dashboard .dts-action-list{display:flex;flex-direction:column;gap:6px;}
+#main-content.page-dashboard .dts-action{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:9px 12px;border-radius:9px;
+  background:#f0f9ff;border-left:3px solid #3b82f6;
+}
+#main-content.page-dashboard .dts-action-arrow{
+  font-size:14px;color:#3b82f6;font-weight:700;flex-shrink:0;margin-top:1px;
+}
+#main-content.page-dashboard .dts-action-txt{font-size:12px;color:#1e40af;line-height:1.4;}
+
+/* Mobile: stack thành 1 cột */
+@media(max-width:640px){
+  #main-content.page-dashboard .dts-stat-val{font-size:18px;}
+}
+
 /* Giữ vị trí như .content ban đầu: khối chính max 1280px, căn giữa trong vùng còn lại (không dồn sát trái) */
 #main-content.page-dashboard .dashboard-layout{
   display:block;

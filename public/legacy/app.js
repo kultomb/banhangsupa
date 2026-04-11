@@ -8383,34 +8383,113 @@ class HamobileBanhang {
                         </div>
                     </div>
                 </div>
-                <div class="dashboard-trend-row dashboard-trend-row--3">
-                    <div class="dashboard-trend-summary dashboard-trend-summary--ok">
-                        <h4>✅ Trong kỳ</h4>
-                        <ul>
-                            <li>• ${customersInPeriod} khách có giao dịch</li>
-                            <li>• TB/giao dịch chốt: ${avgOrderValue.toLocaleString('vi-VN')} VNĐ</li>
-                            <li>• Biên LN gộp: ${profitMarginKpi}% (so với doanh thu kỳ)</li>
-                            <li>• ${products.length} mặt hàng trong hệ thống</li>
-                            <li>• Hoàn thành đơn: ${completedPct}% (trên đơn đã chốt)</li>
-                        </ul>
+                <div class="dashboard-trend-row dashboard-trend-row--3 dts-row">
+                    <!-- Card 1: Trong kỳ -->
+                    <div class="dts-card dts-card--ok">
+                        <div class="dts-accent"></div>
+                        <div class="dts-body">
+                            <div class="dts-head">
+                                <span class="dts-head-icon">✅</span>
+                                <span class="dts-head-title">Trong kỳ</span>
+                            </div>
+                            <div class="dts-stat-grid">
+                                <div class="dts-stat dts-stat--green">
+                                    <span class="dts-stat-val">${customersInPeriod}</span>
+                                    <span class="dts-stat-lbl">👥 Khách GD</span>
+                                </div>
+                                <div class="dts-stat dts-stat--green">
+                                    <span class="dts-stat-val">${finalizedOrders.length}</span>
+                                    <span class="dts-stat-lbl">🧾 Đơn chốt</span>
+                                </div>
+                                <div class="dts-stat dts-stat--green">
+                                    <span class="dts-stat-val">${completedPct}%</span>
+                                    <span class="dts-stat-lbl">✔ Hoàn thành</span>
+                                </div>
+                            </div>
+                            <div class="dts-kv-list">
+                                <div class="dts-kv">
+                                    <span class="dts-kv-lbl">💰 TB/giao dịch</span>
+                                    <strong class="dts-kv-val dts-kv-val--green">${avgOrderValue.toLocaleString('vi-VN')} đ</strong>
+                                </div>
+                                <div class="dts-kv">
+                                    <span class="dts-kv-lbl">📈 Biên LN gộp</span>
+                                    <strong class="dts-kv-val dts-kv-val--green">${profitMarginKpi}%</strong>
+                                </div>
+                                <div class="dts-kv">
+                                    <span class="dts-kv-lbl">📦 Mặt hàng HT</span>
+                                    <strong class="dts-kv-val dts-kv-val--green">${products.length}</strong>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="dashboard-trend-summary dashboard-trend-summary--warn">
-                        <h4>⚠️ Cần lưu ý</h4>
-                        <ul>
-                            <li>• ${lowStockProducts.length} SP sắp hết (tồn hiện tại)</li>
-                            <li>• Công nợ tổng KH: ${totalDebt.toLocaleString('vi-VN')} VNĐ</li>
-                            <li>• ${unpaidOrders} đơn công nợ trong kỳ</li>
-                            <li>• ${repairsReturned.length} phiếu sửa đã trả (doanh thu SC trong kỳ)</li>
-                        </ul>
+                    <!-- Card 2: Cần lưu ý -->
+                    <div class="dts-card dts-card--warn">
+                        <div class="dts-accent"></div>
+                        <div class="dts-body">
+                            <div class="dts-head">
+                                <span class="dts-head-icon">⚠️</span>
+                                <span class="dts-head-title">Cần lưu ý</span>
+                                <span class="dts-badge dts-badge--red">4 mục</span>
+                            </div>
+                            <div class="dts-alert-list">
+                                <div class="dts-alert${lowStockProducts.length > 0 ? ' dts-alert--active' : ''}">
+                                    <span class="dts-alert-num">${lowStockProducts.length}</span>
+                                    <div class="dts-alert-info">
+                                        <span class="dts-alert-label">SP sắp hết tồn kho</span>
+                                        <span class="dts-alert-sub">Cần nhập thêm</span>
+                                    </div>
+                                </div>
+                                <div class="dts-alert${totalDebt > 0 ? ' dts-alert--active' : ''}">
+                                    <span class="dts-alert-num dts-alert-num--sm">${totalDebt >= 1000000 ? (totalDebt/1000000).toFixed(1)+'M' : totalDebt.toLocaleString('vi-VN')+'đ'}</span>
+                                    <div class="dts-alert-info">
+                                        <span class="dts-alert-label">Công nợ tổng KH</span>
+                                        <span class="dts-alert-sub">Cần thu hồi</span>
+                                    </div>
+                                </div>
+                                <div class="dts-alert${unpaidOrders > 0 ? ' dts-alert--active' : ''}">
+                                    <span class="dts-alert-num">${unpaidOrders}</span>
+                                    <div class="dts-alert-info">
+                                        <span class="dts-alert-label">Đơn công nợ trong kỳ</span>
+                                        <span class="dts-alert-sub">Chưa thanh toán</span>
+                                    </div>
+                                </div>
+                                <div class="dts-alert">
+                                    <span class="dts-alert-num">${repairsReturned.length}</span>
+                                    <div class="dts-alert-info">
+                                        <span class="dts-alert-label">Phiếu SC đã trả kỳ</span>
+                                        <span class="dts-alert-sub">Doanh thu sửa chữa</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="dashboard-trend-summary dashboard-trend-summary--info">
-                        <h4>🎯 Gợi ý</h4>
-                        <ul>
-                            <li>• Nhập thêm hàng bán chạy trong kỳ</li>
-                            <li>• Khuyến mãi SP ít bán</li>
-                            <li>• Tăng giá trị đơn trung bình</li>
-                            <li>• Thu hồi công nợ đến hạn</li>
-                        </ul>
+                    <!-- Card 3: Gợi ý -->
+                    <div class="dts-card dts-card--tip">
+                        <div class="dts-accent"></div>
+                        <div class="dts-body">
+                            <div class="dts-head">
+                                <span class="dts-head-icon">🎯</span>
+                                <span class="dts-head-title">Gợi ý hành động</span>
+                            </div>
+                            <div class="dts-action-list">
+                                <div class="dts-action">
+                                    <span class="dts-action-arrow">→</span>
+                                    <span class="dts-action-txt">Nhập thêm hàng bán chạy trong kỳ</span>
+                                </div>
+                                <div class="dts-action">
+                                    <span class="dts-action-arrow">→</span>
+                                    <span class="dts-action-txt">Khuyến mãi SP ít bán để giải phóng hàng tồn</span>
+                                </div>
+                                <div class="dts-action">
+                                    <span class="dts-action-arrow">→</span>
+                                    <span class="dts-action-txt">Tăng giá trị đơn trung bình qua upsell/combo</span>
+                                </div>
+                                <div class="dts-action">
+                                    <span class="dts-action-arrow">→</span>
+                                    <span class="dts-action-txt">Thu hồi công nợ đến hạn từ khách cũ</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>`;
