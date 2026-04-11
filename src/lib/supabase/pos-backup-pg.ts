@@ -3,6 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
+/** Retry a Supabase write once after a short delay on transient failure. */
+async function withRetry<T>(fn: () => Promise<{ data: T; error: unknown }>): Promise<{ data: T; error: unknown }> {
+  const first = await fn();
+  if (!first.error) return first;
+  await new Promise((r) => setTimeout(r, 200));
+  return fn();
+}
+
 export type PosBackupTable = "pos_backups" | "trial_pos_backups";
 
 function getDeep(obj: unknown, path: string[]): unknown {
@@ -104,12 +112,17 @@ async function ensureBackupRow(
 }
 
 export async function liftLegacyTrialBackupToTrialBackupsPg(admin: SupabaseClient, shopKey: string) {
-  const trial = await getLatestRow(admin, "trial_pos_backups", shopKey);
-  if (trial) return;
-  const pro = await getLatestRow(admin, "pos_backups", shopKey);
-  if (!pro) return;
-  await admin.from("trial_pos_backups").insert({ shop_key: shopKey, data: pro.data });
-  await admin.from("pos_backups").delete().eq("id", pro.id);
+  try {
+    const trial = await getLatestRow(admin, "trial_pos_backups", shopKey);
+    if (trial) return;
+    const pro = await getLatestRow(admin, "pos_backups", shopKey);
+    if (!pro) return;
+    await admin.from("trial_pos_backups").insert({ shop_key: shopKey, data: pro.data });
+    await admin.from("pos_backups").delete().eq("id", pro.id);
+  } catch {
+    // Non-critical migration step — log and continue rather than blocking the request.
+    console.warn("[pos-backup-pg] liftLegacyTrialBackup failed (non-fatal)");
+  }
 }
 
 function jsonError(status: number, error: string, message: string) {
@@ -236,7 +249,7 @@ export async function proxyPosBackupPostgres(params: {
       merged.meta = { ...existingMeta, ...incomingMeta };
       tree.app = merged;
 
-      const { error } = await admin.from(table).update({ data: tree }).eq("id", row.id);
+      const { error } = await withRetry(() => admin.from(table).update({ data: tree }).eq("id", row.id));
       if (error) {
         return jsonError(500, "write_failed", "Không ghi được CSDL.");
       }
@@ -250,7 +263,7 @@ export async function proxyPosBackupPostgres(params: {
     const tree = { ...((row.data || {}) as Record<string, unknown>) };
     const next =
       sub.length === 0 ? (value as Record<string, unknown>) : setDeep(tree, sub, value ?? null);
-    const { error } = await admin.from(table).update({ data: next }).eq("id", row.id);
+    const { error } = await withRetry(() => admin.from(table).update({ data: next }).eq("id", row.id));
     if (error) return jsonError(500, "write_failed", "Không ghi được CSDL.");
     const written = sub.length === 0 ? next : getDeep(next, sub);
     return new Response(JSON.stringify(written ?? null), {
@@ -278,7 +291,7 @@ export async function proxyPosBackupPostgres(params: {
     const snaps = { ...((tree.snapshots as Record<string, unknown>) || {}) };
     delete snaps[String(snapLeaf)];
     tree.snapshots = snaps;
-    const { error } = await admin.from(table).update({ data: tree }).eq("id", row.id);
+    const { error } = await withRetry(() => admin.from(table).update({ data: tree }).eq("id", row.id));
     if (error) return jsonError(500, "delete_failed", "Không xóa được.");
     return new Response("null", {
       status: 200,

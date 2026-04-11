@@ -15,6 +15,7 @@ import { getEffectiveTrialExpiresAt, getTrialShopPrefix, isEffectiveTrialAccount
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const COOKIE_NAME = "ha_session_token";
 
@@ -171,23 +172,37 @@ async function proxy(
   });
 }
 
+function safeProxy(
+  request: Request,
+  context: { params: Promise<{ path?: string[] }> },
+) {
+  return proxy(request, context).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err ?? "unknown");
+    logRtdb("unhandled_error", { message: msg });
+    return new Response(
+      JSON.stringify({ error: "internal_error", message: "Lỗi hệ thống, vui lòng thử lại." }),
+      { status: 500, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
+    );
+  });
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
 ) {
-  return proxy(request, context);
+  return safeProxy(request, context);
 }
 
 export async function PUT(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
 ) {
-  return proxy(request, context);
+  return safeProxy(request, context);
 }
 
 export async function DELETE(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
 ) {
-  return proxy(request, context);
+  return safeProxy(request, context);
 }
