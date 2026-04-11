@@ -4,11 +4,11 @@ import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 /** Retry a Supabase write once after a short delay on transient failure. */
-async function withRetry<T>(fn: () => Promise<{ data: T; error: unknown }>): Promise<{ data: T; error: unknown }> {
+async function withRetry<T extends { error: unknown }>(fn: () => PromiseLike<T>): Promise<T> {
   const first = await fn();
   if (!first.error) return first;
-  await new Promise((r) => setTimeout(r, 200));
-  return fn();
+  await new Promise<void>((r) => setTimeout(r, 200));
+  return await fn();
 }
 
 export type PosBackupTable = "pos_backups" | "trial_pos_backups";
