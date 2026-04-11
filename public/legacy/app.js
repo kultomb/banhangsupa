@@ -8177,7 +8177,10 @@ class HamobileBanhang {
         const totalTransactions = finalizedOrders.length + repairsReturned.length;
         const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
-        const totalDebt = customers.reduce((sum, c) => sum + (Number(c.debt) || 0), 0);
+        // Công nợ thực tế: dùng getActualDebtForCustomer (đồng bộ với trang Công nợ, gồm cả SC)
+        const debtCustomers = this.getCustomersWithDebt();
+        const totalDebt = debtCustomers.reduce((sum, c) => sum + this.getActualDebtForCustomer(c), 0);
+        const debtCustomerCount = debtCustomers.length;
         const paidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Đã thanh toán').length;
         const unpaidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Công nợ').length;
         const completedOrders = finalizedOrders.filter((o) => o.status === 'Hoàn thành').length;
@@ -8440,10 +8443,10 @@ class HamobileBanhang {
                                     </div>
                                 </div>
                                 <div class="dts-alert${totalDebt > 0 ? ' dts-alert--active' : ''}">
-                                    <span class="dts-alert-num dts-alert-num--sm">${totalDebt >= 1000000 ? (totalDebt/1000000).toFixed(1)+'M' : totalDebt.toLocaleString('vi-VN')+'đ'}</span>
+                                    <span class="dts-alert-num dts-alert-num--sm">${totalDebt >= 1000000 ? (totalDebt/1000000).toFixed(2).replace(/\.?0+$/,'')+'M' : totalDebt.toLocaleString('vi-VN')+'đ'}</span>
                                     <div class="dts-alert-info">
                                         <span class="dts-alert-label">Công nợ tổng KH</span>
-                                        <span class="dts-alert-sub">Cần thu hồi</span>
+                                        <span class="dts-alert-sub">${debtCustomerCount} khách · đơn hàng + SC</span>
                                     </div>
                                 </div>
                                 <div class="dts-alert${unpaidOrders > 0 ? ' dts-alert--active' : ''}">
