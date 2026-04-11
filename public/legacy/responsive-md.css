@@ -3071,6 +3071,19 @@ select.edit-order-inp{
   #main-content.page-dashboard .dts-stat-val{font-size:18px;}
 }
 
+/* ── Loading placeholder (trend section) ── */
+#main-content.page-dashboard .dts-loading-placeholder{
+  background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;
+  padding:28px 20px;text-align:center;color:#9ca3af;font-size:13px;
+  display:flex;align-items:center;justify-content:center;min-height:80px;
+}
+#main-content.page-dashboard .dts-loading-inner{display:flex;align-items:center;gap:10px;}
+#main-content.page-dashboard .dts-loading-spinner{
+  width:16px;height:16px;border:2px solid #e5e7eb;border-top-color:#6b7280;
+  border-radius:50%;animation:dts-spin .7s linear infinite;flex-shrink:0;
+}
+@keyframes dts-spin{to{transform:rotate(360deg);}}
+
 /* Giữ vị trí như .content ban đầu: khối chính max 1280px, căn giữa trong vùng còn lại (không dồn sát trái) */
 #main-content.page-dashboard .dashboard-layout{
   display:block;

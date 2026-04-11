@@ -701,6 +701,8 @@ class HamobileBanhang {
         this.repairsSearchQuery = '';
         this.repairsFilterPeriod = 'all';
         this._dashboardTrendPeriod = 'today';
+        this._trendCacheKey = '';
+        this._trendCacheHtml = null;
         this.productsCategoryFilter = '';
         this.productsPage = 1;
         this.productsPerPage = 50;
@@ -1729,6 +1731,7 @@ class HamobileBanhang {
 
     setDashboardTrendPeriod(key) {
         this._dashboardTrendPeriod = key;
+        this._trendCacheKey = ''; // buộc tính lại khi đổi kỳ
         const el = document.getElementById('dashboard-trend-analysis');
         const mc = document.getElementById('main-content');
         if (!el || !mc || !mc.classList.contains('page-dashboard')) return;
@@ -2022,6 +2025,17 @@ class HamobileBanhang {
             });
             window.addEventListener('resize', this._dashboardSidebarLayoutHandler);
             this.startDashboardVnClock();
+            // Render trend section không chặn UI — dashboard hiện ngay, trend tải sau 1 frame
+            const _self = this;
+            const _renderTrend = () => {
+                const ph = document.getElementById('dashboard-trend-placeholder');
+                if (ph) ph.outerHTML = _self.getTrendAnalysisSectionHtml();
+            };
+            if (typeof requestIdleCallback !== 'undefined') {
+                requestIdleCallback(_renderTrend, { timeout: 1500 });
+            } else {
+                setTimeout(_renderTrend, 0);
+            }
         }
         
         // Add fade in animation
@@ -2223,7 +2237,12 @@ class HamobileBanhang {
 
                     </div>
                 </div>
-                ${this.getTrendAnalysisSectionHtml()}
+                <div id="dashboard-trend-placeholder" class="dts-loading-placeholder" aria-label="Đang tải báo cáo">
+                    <div class="dts-loading-inner">
+                        <span class="dts-loading-spinner"></span>
+                        <span>Đang tải báo cáo xu hướng…</span>
+                    </div>
+                </div>
                     </div>
                 </div>
                 </div>
@@ -8139,6 +8158,9 @@ class HamobileBanhang {
         const allRepairs = data.repairs || [];
         const products = data.products || [];
         const customers = data.customers || [];
+        // Cache: chỉ tính lại khi số lượng bản ghi hoặc kỳ thay đổi
+        const _ck = `${this.getDashboardTrendPeriodKey()}:${allOrders.length}:${allRepairs.length}:${customers.length}:${products.length}`;
+        if (this._trendCacheKey === _ck && this._trendCacheHtml) return this._trendCacheHtml;
 
         const periodKey = this.getDashboardTrendPeriodKey();
         const range = this.getTrendAnalysisPeriodRange(periodKey);
@@ -8283,7 +8305,7 @@ class HamobileBanhang {
                       .join('')
                 : '<p class="dashboard-trend-empty">Chưa có doanh thu trong kỳ.</p>';
 
-        return `
+        const _trendHtml = `
             <div class="dashboard-trend-section quick-actions" id="dashboard-trend-analysis" role="region" aria-label="Phân tích xu hướng kinh doanh">
                 <div class="dashboard-trend-header">
                     <div class="dashboard-trend-header-row">
@@ -8510,6 +8532,9 @@ class HamobileBanhang {
                     </div>
                 </div>
             </div>`;
+        this._trendCacheKey = _ck;
+        this._trendCacheHtml = _trendHtml;
+        return _trendHtml;
     }
     
     getCompanyInfoContent() {
