@@ -2759,7 +2759,8 @@ select.edit-order-inp{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  padding:0 4px 4px;
+  /* padding-top để bar-tip của cột cao nhất không bị clip bởi overflow container */
+  padding:28px 4px 4px;
   border-bottom:2px solid #d1d5db;
   gap:4px;
 }

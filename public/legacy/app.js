@@ -700,7 +700,7 @@ class HamobileBanhang {
         this.debtsMobileSortDesc = true;
         this.repairsSearchQuery = '';
         this.repairsFilterPeriod = 'all';
-        this._dashboardTrendPeriod = 'this_month';
+        this._dashboardTrendPeriod = 'today';
         this.productsCategoryFilter = '';
         this.productsPage = 1;
         this.productsPerPage = 50;
@@ -1720,7 +1720,7 @@ class HamobileBanhang {
     }
 
     getDashboardTrendPeriodKey() {
-        return this._dashboardTrendPeriod || 'this_month';
+        return this._dashboardTrendPeriod || 'today';
     }
 
     setDashboardTrendPeriod(key) {
