@@ -2742,6 +2742,8 @@ select.edit-order-inp{
   padding:clamp(16px,3vw,24px);
   border-radius:12px;
   border:1px solid #e5e7eb;
+  /* grid item phải bị chặn theo độ rộng track — không có dòng này thì panel mở rộng theo nội dung chart */
+  min-width:0;
 }
 
 #main-content.page-dashboard .dashboard-trend-panel-title{
@@ -2816,17 +2818,16 @@ select.edit-order-inp{
   align-self:stretch;
 }
 
-/* Scroll wrapper — mobile: chart cuộn ngang thay vì bị squish */
+/* Scroll wrapper — chart cuộn ngang khi nhiều cột (tháng/quý) thay vì tràn ra ngoài */
 #main-content.page-dashboard .dashboard-trend-bar-chart-scroll{
   width:100%;
+  min-width:0;
 }
-@media(max-width:640px){
+/* Áp dụng cho mobile + tablet đơn cột (khớp breakpoint grid stack) */
+@media(max-width:900px){
   #main-content.page-dashboard .dashboard-trend-bar-chart-scroll{
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
-    /* padding-top giữ chỗ cho bar-tip không bị clip bởi overflow */
-    padding-top:26px;
-    margin-top:-26px;
   }
   /* Mỗi cột giữ chiều rộng tối thiểu để bar + nhãn đọc được */
   #main-content.page-dashboard .dashboard-trend-bar-chart-scroll .dashboard-trend-bar-col{
