@@ -2872,31 +2872,34 @@ class HamobileBanhang {
         if (p === 'all') return true;
         const d = order.date;
         if (!d) return false;
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const yesterday = new Date(vn);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        const last7Start = new Date(vn);
-        last7Start.setDate(last7Start.getDate() - 6);
-        const last7StartStr = last7Start.toISOString().split('T')[0];
+        const todayStr = this.getVietnamDateKey();
+        const yesterdayStr = this.addDaysToVietnamDateKey(todayStr, -1);
+        const last7StartStr = this.addDaysToVietnamDateKey(todayStr, -6);
+        // Thứ Hai của tuần hiện tại (tuần bắt đầu từ thứ Hai)
         const weekStart = (() => {
-            const dd = new Date(vn);
-            const day = dd.getDay();
-            dd.setDate(dd.getDate() - day + (day === 0 ? -6 : 1));
-            return dd.toISOString().split('T')[0];
+            const now = new Date();
+            const vnStr = this.getVietnamDateKey(now);
+            const [yy, mm, dd] = vnStr.split('-').map(Number);
+            const tmp = new Date(yy, mm - 1, dd);
+            const dow = tmp.getDay(); // 0=CN, 1=T2...
+            const diff = dow === 0 ? -6 : 1 - dow;
+            tmp.setDate(tmp.getDate() + diff);
+            return `${tmp.getFullYear()}-${String(tmp.getMonth() + 1).padStart(2, '0')}-${String(tmp.getDate()).padStart(2, '0')}`;
         })();
         if (p === 'today') return d === todayStr;
         if (p === 'yesterday') return d === yesterdayStr;
         if (p === 'last7') return d >= last7StartStr && d <= todayStr;
-        if (p === 'week') return d >= weekStart;
-        const y = vn.getFullYear();
-        const m = vn.getMonth() + 1;
-        const thisPrefix = `${y}-${String(m).padStart(2, '0')}`;
+        if (p === 'week') return d >= weekStart && d <= todayStr;
+        if (p === 'last_week') {
+            const lastWeekEnd = this.addDaysToVietnamDateKey(weekStart, -1);
+            const lastWeekStart = this.addDaysToVietnamDateKey(weekStart, -7);
+            return d >= lastWeekStart && d <= lastWeekEnd;
+        }
+        const [ty, tm] = todayStr.split('-').map(Number);
+        const thisPrefix = `${ty}-${String(tm).padStart(2, '0')}`;
         if (p === 'this_month') return d.startsWith(`${thisPrefix}-`);
-        const prev = new Date(vn);
-        prev.setMonth(prev.getMonth() - 1);
-        const lastPrefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+        const prevMonthDate = new Date(ty, tm - 2, 1);
+        const lastPrefix = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
         if (p === 'last_month') return d.startsWith(`${lastPrefix}-`);
         if (p === 'custom') {
             const from = this.ordersFilterCustomFrom || todayStr;
@@ -2912,6 +2915,7 @@ class HamobileBanhang {
             yesterday: ' hôm qua',
             last7: ' 7 ngày qua',
             week: ' tuần này',
+            last_week: ' tuần trước',
             this_month: ' tháng này',
             last_month: ' tháng trước',
             custom: ' (tùy chỉnh)',
@@ -5420,6 +5424,7 @@ class HamobileBanhang {
                                         <option value="yesterday" ${periodSel === 'yesterday' ? 'selected' : ''}>Hôm qua</option>
                                         <option value="last7" ${periodSel === 'last7' ? 'selected' : ''}>7 ngày qua</option>
                                         <option value="week" ${periodSel === 'week' ? 'selected' : ''}>Tuần này</option>
+                                        <option value="last_week" ${periodSel === 'last_week' ? 'selected' : ''}>Tuần trước</option>
                                         <option value="this_month" ${periodSel === 'this_month' ? 'selected' : ''}>Tháng này</option>
                                         <option value="last_month" ${periodSel === 'last_month' ? 'selected' : ''}>Tháng trước</option>
                                         <option value="custom" ${periodSel === 'custom' ? 'selected' : ''}>Tùy chỉnh</option>
@@ -5454,9 +5459,13 @@ class HamobileBanhang {
 
                         <div class="orders-orders-desktop-only" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
                             <button type="button" onclick="app.showCreateOrderForm()" title="Thêm đơn hàng" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '➕' : 'Thêm đơn hàng'}</button>
-                            <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" title="Lọc: Hôm nay" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📅' : 'Hôm nay'}</button>
-                            <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" title="Lọc: Tuần này" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '🗓' : 'Tuần này'}</button>
-                            <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" title="Lọc: Tất cả" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📌' : 'Tất cả'}</button>
+                            <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" title="Lọc: Hôm nay" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Hôm nay</button>
+                            <button type="button" id="orders-filter-yesterday" onclick="app.setOrdersFilterPeriod('yesterday')" title="Lọc: Hôm qua" style="background: ${this.ordersFilterPeriod === 'yesterday' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'yesterday' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'yesterday' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Hôm qua</button>
+                            <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" title="Lọc: Tuần này" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tuần này</button>
+                            <button type="button" id="orders-filter-last-week" onclick="app.setOrdersFilterPeriod('last_week')" title="Lọc: Tuần trước" style="background: ${this.ordersFilterPeriod === 'last_week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'last_week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'last_week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tuần trước</button>
+                            <button type="button" id="orders-filter-this-month" onclick="app.setOrdersFilterPeriod('this_month')" title="Lọc: Tháng này" style="background: ${this.ordersFilterPeriod === 'this_month' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'this_month' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'this_month' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tháng này</button>
+                            <button type="button" id="orders-filter-last-month" onclick="app.setOrdersFilterPeriod('last_month')" title="Lọc: Tháng trước" style="background: ${this.ordersFilterPeriod === 'last_month' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'last_month' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'last_month' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tháng trước</button>
+                            <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" title="Lọc: Tất cả" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tất cả</button>
                             <button type="button" onclick="app.exportOrdersReport()" title="Xuất báo cáo" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📤' : 'Xuất báo cáo'}</button>
                         </div>
 
@@ -5687,7 +5696,11 @@ class HamobileBanhang {
         const active = this.ordersFilterPeriod || 'last7';
         const configs = [
             { id: 'orders-filter-today', period: 'today' },
+            { id: 'orders-filter-yesterday', period: 'yesterday' },
             { id: 'orders-filter-week', period: 'week' },
+            { id: 'orders-filter-last-week', period: 'last_week' },
+            { id: 'orders-filter-this-month', period: 'this_month' },
+            { id: 'orders-filter-last-month', period: 'last_month' },
             { id: 'orders-filter-all', period: 'all' }
         ];
         configs.forEach(cfg => {
