@@ -1681,19 +1681,23 @@ class HamobileBanhang {
         const n = days.length;
         if (n === 0) return [];
 
-        const dayRevenue = (day) => {
-            let rev = 0;
-            (allOrders || []).forEach((o) => {
-                if (!this.orderDateInRange(o, day, day)) return;
-                rev += this.getOrderRecordedNetRevenue(o);
-            });
-            (allRepairs || []).forEach((r) => {
-                if (!this.repairDateInRange(r, day, day)) return;
-                if ((r.status || '') !== 'Đã trả') return;
-                rev += Number(r.repairCost) || 0;
-            });
-            return rev;
-        };
+        // Pre-index theo ngày để dayRevenue() là O(1) thay vì O(n_đơn) mỗi lần
+        const orderRevByDate = new Map();
+        (allOrders || []).forEach((o) => {
+            const d = this.normalizeRecordDateToYmd(o && o.date);
+            if (!d || d < fromKey || d > toKey) return;
+            orderRevByDate.set(d, (orderRevByDate.get(d) || 0) + this.getOrderRecordedNetRevenue(o));
+        });
+        const repairRevByDate = new Map();
+        (allRepairs || []).forEach((r) => {
+            if ((r.status || '') !== 'Đã trả') return;
+            const d = this.normalizeRecordDateToYmd(r && r.date);
+            if (!d || d < fromKey || d > toKey) return;
+            repairRevByDate.set(d, (repairRevByDate.get(d) || 0) + (Number(r.repairCost) || 0));
+        });
+
+        const dayRevenue = (day) =>
+            (orderRevByDate.get(day) || 0) + (repairRevByDate.get(day) || 0);
 
         const bucketSize = Math.max(1, Math.ceil(n / maxBars));
         const buckets = [];
@@ -8177,22 +8181,19 @@ class HamobileBanhang {
         const totalTransactions = finalizedOrders.length + repairsReturned.length;
         const avgOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
-        // Công nợ thực tế: 1 pass qua đơn + SC — không gọi getCustomersWithDebt để tránh O(n²)
+        // Công nợ thực tế: 1 pass qua đơn + SC, dùng allOrders/allRepairs đã có
         const _debtIds = new Set();
-        const totalDebt = (() => {
-            let s = 0;
-            (this.demoData.orders || []).forEach(o => {
-                const paid = o.amountPaid != null ? o.amountPaid : (o.paymentStatus === 'Đã thanh toán' ? (o.total || 0) : 0);
-                const d = Math.max(0, (o.total || 0) - paid);
-                if (d > 0) { s += d; _debtIds.add(o.customerId || o.customerName || '_'); }
-            });
-            (this.demoData.repairs || []).forEach(r => {
-                if ((r.status || '') !== 'Đã trả') return;
-                const d = Math.max(0, (Number(r.repairCost) || 0) - (Number(r.amountPaid) || 0));
-                if (d > 0) { s += d; _debtIds.add(r.customerId || r.customerName || '_'); }
-            });
-            return s;
-        })();
+        let totalDebt = 0;
+        allOrders.forEach(o => {
+            const paid = o.amountPaid != null ? o.amountPaid : (o.paymentStatus === 'Đã thanh toán' ? (o.total || 0) : 0);
+            const d = Math.max(0, (o.total || 0) - paid);
+            if (d > 0) { totalDebt += d; _debtIds.add(o.customerId || o.customerName || '_'); }
+        });
+        allRepairs.forEach(r => {
+            if ((r.status || '') !== 'Đã trả') return;
+            const d = Math.max(0, (Number(r.repairCost) || 0) - (Number(r.amountPaid) || 0));
+            if (d > 0) { totalDebt += d; _debtIds.add(r.customerId || r.customerName || '_'); }
+        });
         const debtCustomerCount = _debtIds.size;
         const paidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Đã thanh toán').length;
         const unpaidOrders = finalizedOrders.filter((o) => o.paymentStatus === 'Công nợ').length;
