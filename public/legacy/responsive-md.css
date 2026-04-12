@@ -3622,3 +3622,342 @@ details.inventory-stock-alert-collapsible .inventory-out-of-stock-grid{
   }
 }
 
+
+
+/* ============================================================
+   ⚔️  WUXIA DASHBOARD THEME — Dark Luxury Override
+   Áp dụng toàn bộ trang Tổng quan theo phong cách kiếm hiệp
+   Tông màu: Gold / Blue Energy / Crimson / Jade / Steel
+   ============================================================ */
+
+/* ── PAGE ROOT: dark gradient nền ── */
+#main-content.page-dashboard .dashboard-page-root {
+  background: linear-gradient(160deg, #080c18 0%, #0d1526 40%, #0a1020 70%, #06090f 100%);
+  min-height: 100vh;
+  position: relative;
+}
+#main-content.page-dashboard .dashboard-page-root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 50% at 20% 30%, rgba(250,204,21,.04) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 40% at 80% 70%, rgba(59,130,246,.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── KPI CARDS ── */
+#main-content.page-dashboard .kpi-card {
+  background: rgba(15,23,42,0.82) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255,255,255,0.07) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05) !important;
+  border-radius: 16px !important;
+}
+#main-content.page-dashboard .kpi-card::before {
+  height: 2px !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+
+/* Gold — Doanh thu */
+#main-content.page-dashboard .kpi-card--green {
+  box-shadow: 0 4px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(250,204,21,.18), 0 2px 20px rgba(250,204,21,.08) !important;
+  border-color: rgba(250,204,21,.18) !important;
+}
+#main-content.page-dashboard .kpi-card--green::before {
+  background: linear-gradient(90deg, #facc15 0%, #fbbf24 50%, #f59e0b 100%) !important;
+  box-shadow: 0 0 8px rgba(250,204,21,.6);
+}
+#main-content.page-dashboard .kpi-card--green .kpi-num { color: #fde68a !important; }
+#main-content.page-dashboard .kpi-card--green .kpi-icon { opacity: .12 !important; filter: sepia(1) saturate(4) hue-rotate(-10deg); }
+
+/* Blue — Lợi nhuận */
+#main-content.page-dashboard .kpi-card--blue {
+  box-shadow: 0 4px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(59,130,246,.18), 0 2px 20px rgba(59,130,246,.08) !important;
+  border-color: rgba(59,130,246,.18) !important;
+}
+#main-content.page-dashboard .kpi-card--blue::before {
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%) !important;
+  box-shadow: 0 0 8px rgba(59,130,246,.6);
+}
+#main-content.page-dashboard .kpi-card--blue .kpi-num { color: #93c5fd !important; }
+#main-content.page-dashboard .kpi-card--blue .kpi-icon { opacity: .12 !important; filter: sepia(1) saturate(4) hue-rotate(190deg); }
+
+/* Crimson — Đơn hàng */
+#main-content.page-dashboard .kpi-card--amber {
+  box-shadow: 0 4px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(239,68,68,.18), 0 2px 20px rgba(239,68,68,.08) !important;
+  border-color: rgba(239,68,68,.18) !important;
+}
+#main-content.page-dashboard .kpi-card--amber::before {
+  background: linear-gradient(90deg, #ef4444 0%, #f87171 50%, #fca5a5 100%) !important;
+  box-shadow: 0 0 8px rgba(239,68,68,.6);
+}
+#main-content.page-dashboard .kpi-card--amber .kpi-num { color: #fca5a5 !important; }
+#main-content.page-dashboard .kpi-card--amber .kpi-icon { opacity: .12 !important; filter: sepia(1) saturate(4) hue-rotate(300deg); }
+
+/* Jade — Khách hàng */
+#main-content.page-dashboard .kpi-card--violet {
+  box-shadow: 0 4px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(34,197,94,.18), 0 2px 20px rgba(34,197,94,.08) !important;
+  border-color: rgba(34,197,94,.18) !important;
+}
+#main-content.page-dashboard .kpi-card--violet::before {
+  background: linear-gradient(90deg, #22c55e 0%, #4ade80 50%, #86efac 100%) !important;
+  box-shadow: 0 0 8px rgba(34,197,94,.6);
+}
+#main-content.page-dashboard .kpi-card--violet .kpi-num { color: #86efac !important; }
+#main-content.page-dashboard .kpi-card--violet .kpi-icon { opacity: .12 !important; filter: sepia(1) saturate(4) hue-rotate(100deg); }
+
+/* KPI text common */
+#main-content.page-dashboard .kpi-suffix { color: rgba(255,255,255,.35) !important; }
+#main-content.page-dashboard .kpi-lbl {
+  color: rgba(255,255,255,.45) !important;
+  letter-spacing: .06em !important;
+}
+#main-content.page-dashboard .kpi-delta--up { color: #4ade80 !important; }
+#main-content.page-dashboard .kpi-delta--dn { color: #f87171 !important; }
+#main-content.page-dashboard .kpi-delta--nil { color: rgba(255,255,255,.3) !important; }
+#main-content.page-dashboard .kpi-vs { color: rgba(255,255,255,.28) !important; }
+
+/* ── SECTION TITLE — gold wuxia style ── */
+#main-content.page-dashboard .section-title {
+  color: #fde68a !important;
+  font-weight: 800 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  font-size: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+#main-content.page-dashboard .section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 13px;
+  background: linear-gradient(180deg, #facc15 0%, #f59e0b 100%);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(250,204,21,.5);
+  flex-shrink: 0;
+}
+
+/* ── QUICK ACTIONS container ── */
+#main-content.page-dashboard .quick-actions {
+  background: rgba(15,23,42,0.75) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(250,204,21,.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.4) !important;
+}
+
+/* ── ACTION BUTTONS ── */
+#main-content.page-dashboard .action-button {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 12px !important;
+  color: rgba(255,255,255,.7) !important;
+  transition: all .22s ease !important;
+}
+#main-content.page-dashboard .action-button:hover {
+  border-color: rgba(250,204,21,.4) !important;
+  background: rgba(250,204,21,.07) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(250,204,21,.15) !important;
+  color: #fde68a !important;
+}
+#main-content.page-dashboard .action-title {
+  color: inherit !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: .02em !important;
+}
+
+/* ── RECENT ACTIVITY SIDEBAR ── */
+#main-content.page-dashboard .recent-activity {
+  background: rgba(15,23,42,0.75) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(250,204,21,.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.4) !important;
+}
+#main-content.page-dashboard .activity-item {
+  background: rgba(255,255,255,.03) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255,255,255,.05) !important;
+}
+#main-content.page-dashboard .activity-item:hover {
+  background: rgba(250,204,21,.06) !important;
+  border-color: rgba(250,204,21,.15) !important;
+}
+#main-content.page-dashboard .activity-desc { color: rgba(255,255,255,.85) !important; }
+#main-content.page-dashboard .activity-time,
+#main-content.page-dashboard .activity-amount { color: rgba(255,255,255,.5) !important; }
+#main-content.page-dashboard .dashboard-vn-clock {
+  color: rgba(250,204,21,.7) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .05em !important;
+}
+
+/* ── TREND ANALYSIS HEADER ── */
+#main-content.page-dashboard .dashboard-trend-header {
+  background: rgba(15,23,42,0.82) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.45) !important;
+}
+#main-content.page-dashboard .dashboard-trend-header::before {
+  background: linear-gradient(90deg, #facc15 0%, #3b82f6 50%, #22c55e 100%) !important;
+}
+#main-content.page-dashboard .dashboard-trend-title {
+  color: #fde68a !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+  font-size: 14px !important;
+}
+#main-content.page-dashboard .dashboard-trend-subtitle {
+  background: rgba(255,255,255,.05) !important;
+  border-color: rgba(255,255,255,.1) !important;
+  color: rgba(255,255,255,.5) !important;
+}
+
+/* Period selector pills */
+#main-content.page-dashboard .trp-pill {
+  background: rgba(255,255,255,.05) !important;
+  border-color: rgba(255,255,255,.1) !important;
+  color: rgba(255,255,255,.55) !important;
+  font-size: 11px !important;
+}
+#main-content.page-dashboard .trp-pill:hover:not(.trp-pill--on) {
+  background: rgba(250,204,21,.08) !important;
+  border-color: rgba(250,204,21,.3) !important;
+  color: #fde68a !important;
+}
+#main-content.page-dashboard .trp-pill--on {
+  background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%) !important;
+  border-color: transparent !important;
+  color: #0a0e1a !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 10px rgba(250,204,21,.35) !important;
+}
+
+/* ── TREND KPI CARDS ── */
+#main-content.page-dashboard .dashboard-trend-kpi-card {
+  border-radius: 14px !important;
+  padding: 16px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-card--green {
+  background: linear-gradient(135deg, rgba(250,204,21,.18) 0%, rgba(245,158,11,.12) 100%) !important;
+  border-color: rgba(250,204,21,.25) !important;
+  box-shadow: 0 4px 16px rgba(250,204,21,.1) !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-card--blue {
+  background: linear-gradient(135deg, rgba(59,130,246,.18) 0%, rgba(29,78,216,.12) 100%) !important;
+  border-color: rgba(59,130,246,.25) !important;
+  box-shadow: 0 4px 16px rgba(59,130,246,.1) !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-card--amber {
+  background: linear-gradient(135deg, rgba(239,68,68,.18) 0%, rgba(185,28,28,.12) 100%) !important;
+  border-color: rgba(239,68,68,.25) !important;
+  box-shadow: 0 4px 16px rgba(239,68,68,.1) !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-card--violet {
+  background: linear-gradient(135deg, rgba(34,197,94,.18) 0%, rgba(21,128,61,.12) 100%) !important;
+  border-color: rgba(34,197,94,.25) !important;
+  box-shadow: 0 4px 16px rgba(34,197,94,.1) !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-value {
+  font-size: clamp(20px,3.5vw,30px) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.02em !important;
+  text-shadow: 0 0 20px currentColor !important;
+}
+#main-content.page-dashboard .dashboard-trend-kpi-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  opacity: .8 !important;
+}
+
+/* ── TREND PANELS (charts, top items, etc.) ── */
+#main-content.page-dashboard .dashboard-trend-panel {
+  background: rgba(15,23,42,0.80) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.4) !important;
+  border-radius: 14px !important;
+}
+#main-content.page-dashboard .dashboard-trend-panel-title {
+  color: #fde68a !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+}
+#main-content.page-dashboard .dashboard-trend-bar-label { color: rgba(255,255,255,.45) !important; }
+#main-content.page-dashboard .dashboard-trend-bar-chart { border-bottom-color: rgba(255,255,255,.1) !important; }
+#main-content.page-dashboard .dashboard-trend-bar-tip {
+  background: rgba(250,204,21,.92) !important;
+  color: #0a0e1a !important;
+  font-weight: 800 !important;
+}
+#main-content.page-dashboard .dashboard-trend-bar-tip::after {
+  border-top-color: rgba(250,204,21,.92) !important;
+}
+#main-content.page-dashboard .dashboard-trend-bar-col--active .dashboard-trend-bar {
+  box-shadow: 0 0 12px rgba(250,204,21,.4) !important;
+}
+
+/* ── LOADING PLACEHOLDER ── */
+#main-content.page-dashboard .dts-loading-placeholder {
+  background: rgba(15,23,42,0.8) !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  border-radius: 14px !important;
+  color: rgba(255,255,255,.5) !important;
+}
+#main-content.page-dashboard .dts-loading-spinner {
+  border-color: rgba(250,204,21,.15) !important;
+  border-top-color: #facc15 !important;
+}
+
+/* ── TAX / KHAI THUẾ BUTTON ── */
+#main-content.page-dashboard .dashboard-tax-btn {
+  background: linear-gradient(135deg, #7c2d12 0%, #991b1b 30%, #b45309 70%, #facc15 100%) !important;
+  box-shadow: 0 6px 18px rgba(239,68,68,.35), inset 0 1px 0 rgba(255,255,255,.2) !important;
+  letter-spacing: .12em !important;
+}
+
+/* ── Sidebar scrollbar ── */
+#main-content.page-dashboard .dashboard-sidebar-scroll::-webkit-scrollbar { width: 4px; }
+#main-content.page-dashboard .dashboard-sidebar-scroll::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.04); border-radius: 4px;
+}
+#main-content.page-dashboard .dashboard-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(250,204,21,.3); border-radius: 4px;
+}
+
+/* Donut chart dark overrides */
+#main-content.page-dashboard .dashboard-trend-donut-pct{color:#fde68a!important;text-shadow:0 0 14px rgba(250,204,21,.45)!important;}
+#main-content.page-dashboard .dashboard-trend-donut-num,
+#main-content.page-dashboard .dashboard-trend-donut-cap{color:rgba(255,255,255,.55)!important;}
+#main-content.page-dashboard .dashboard-trend-dot--green{background:#22c55e!important;box-shadow:0 0 6px #22c55e!important;}
+#main-content.page-dashboard .dashboard-trend-dot--amber{background:#fbbf24!important;box-shadow:0 0 6px #fbbf24!important;}
+#main-content.page-dashboard .dashboard-trend-legend{color:rgba(255,255,255,.6)!important;}
+#main-content.page-dashboard .dashboard-trend-legend strong{color:rgba(255,255,255,.9)!important;}
+#main-content.page-dashboard .dashboard-trend-empty{color:rgba(255,255,255,.4)!important;}
