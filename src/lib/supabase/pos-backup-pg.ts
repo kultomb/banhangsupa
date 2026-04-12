@@ -3,12 +3,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
-/** Retry a Supabase write once after a short delay on transient failure. */
+/**
+ * Retry a Supabase call up to 3 attempts on transient failure.
+ * Handles both Supabase-returned { error } and thrown exceptions (network-level).
+ * Delays: 450ms → 1000ms between attempts.
+ */
 async function withRetry<T extends { error: unknown }>(fn: () => PromiseLike<T>): Promise<T> {
-  const first = await fn();
-  if (!first.error) return first;
-  await new Promise<void>((r) => setTimeout(r, 200));
-  return await fn();
+  const delays = [450, 1000];
+  let last: T | undefined;
+  for (let i = 0; i <= delays.length; i++) {
+    try {
+      const result = await fn();
+      if (!result.error) return result;
+      last = result;
+    } catch (err) {
+      // Network-level throw (rare with supabase-js but possible on cold starts)
+      if (i === delays.length) throw err;
+    }
+    if (i < delays.length) {
+      await new Promise<void>((r) => setTimeout(r, delays[i]));
+    }
+  }
+  return last!;
 }
 
 export type PosBackupTable = "pos_backups" | "trial_pos_backups";
@@ -105,13 +121,21 @@ async function ensureBackupRow(
 ) {
   const row = await getLatestRow(admin, table, shopKey);
   if (row) return row;
-  const { data, error } = await admin
-    .from(table)
-    .insert({ shop_key: shopKey, data: initialTree })
-    .select("id, data")
-    .single();
-  if (error) throw error;
-  return data as { id: string; data: Record<string, unknown> };
+  // Wrap INSERT with retry — concurrent first-visit requests can cause transient conflicts
+  const res = await withRetry(() =>
+    admin
+      .from(table)
+      .insert({ shop_key: shopKey, data: initialTree })
+      .select("id, data")
+      .single(),
+  );
+  if (res.error) {
+    // Another concurrent request may have already inserted — try reading again
+    const fallback = await getLatestRow(admin, table, shopKey);
+    if (fallback) return fallback;
+    throw res.error;
+  }
+  return res.data as { id: string; data: Record<string, unknown> };
 }
 
 export async function liftLegacyTrialBackupToTrialBackupsPg(admin: SupabaseClient, shopKey: string) {

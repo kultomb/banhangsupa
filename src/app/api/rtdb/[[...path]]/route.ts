@@ -172,17 +172,36 @@ async function proxy(
   });
 }
 
+function makeErrorResponse() {
+  return new Response(
+    JSON.stringify({ error: "internal_error", message: "Lỗi hệ thống, vui lòng thử lại." }),
+    { status: 500, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
+  );
+}
+
 function safeProxy(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
 ) {
-  return proxy(request, context).catch((err: unknown) => {
+  const isGet = request.method.toUpperCase() === "GET";
+
+  return proxy(request, context).catch(async (err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err ?? "unknown");
+
+    // Retry GET requests once — they are idempotent and safe to replay.
+    // PUT body is consumed by proxy() so cannot be safely retried here.
+    if (isGet) {
+      logRtdb("retry_after_error", { message: msg });
+      await new Promise<void>((r) => setTimeout(r, 700));
+      return proxy(request, context).catch((err2: unknown) => {
+        const msg2 = err2 instanceof Error ? err2.message : String(err2 ?? "unknown");
+        logRtdb("unhandled_error", { message: msg2, attempt: 2 });
+        return makeErrorResponse();
+      });
+    }
+
     logRtdb("unhandled_error", { message: msg });
-    return new Response(
-      JSON.stringify({ error: "internal_error", message: "Lỗi hệ thống, vui lòng thử lại." }),
-      { status: 500, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } },
-    );
+    return makeErrorResponse();
   });
 }
 

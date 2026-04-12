@@ -324,7 +324,15 @@ window.FirebaseStorage = {
             }
         }
         try {
-            const res = await fetch(api, await this._proxyFetchInit());
+            const _loadCtrl = new AbortController();
+            const _loadTimer = setTimeout(() => _loadCtrl.abort(), 16000);
+            var _loadRes;
+            try {
+                _loadRes = await fetch(api, await this._proxyFetchInit({ signal: _loadCtrl.signal }));
+            } finally {
+                clearTimeout(_loadTimer);
+            }
+            const res = _loadRes;
             const resText = await res.text();
             if (!res.ok) {
                 var parsedErr =
@@ -484,11 +492,20 @@ window.FirebaseStorage = {
             return false;
         }
         try {
-            const res = await fetch(api, await this._proxyFetchInit({
-                method: 'PUT',
-                body: JSON.stringify(body),
-                headers: { 'Content-Type': 'application/json' },
-            }));
+            const _saveCtrl = new AbortController();
+            const _saveTimer = setTimeout(() => _saveCtrl.abort(), 20000);
+            var _saveRes;
+            try {
+                _saveRes = await fetch(api, await this._proxyFetchInit({
+                    method: 'PUT',
+                    body: JSON.stringify(body),
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: _saveCtrl.signal,
+                }));
+            } finally {
+                clearTimeout(_saveTimer);
+            }
+            const res = _saveRes;
             const resText = await res.text();
             if (res.ok) {
                 let saved = null;
