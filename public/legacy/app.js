@@ -2306,50 +2306,50 @@ class HamobileBanhang {
                     <div class="dashboard-main">
                 <div class="kpi-grid">
                     <div class="kpi-card kpi-card--green">
-                        <span class="kpi-icon">🐉</span>
+                        <span class="kpi-icon">💰</span>
                         <div class="kpi-num">${todayRevenue.toLocaleString('vi-VN')}<span class="kpi-suffix"> đ</span></div>
                         <div class="kpi-delta">${_kpiDelta(todayRevenue, yesterdayRevenue, revenueChange)}</div>
-                        <div class="kpi-lbl">⚔️ Doanh thu hôm nay</div>
+                        <div class="kpi-lbl">Doanh thu hôm nay</div>
                     </div>
                     <div class="kpi-card kpi-card--blue">
-                        <span class="kpi-icon">💎</span>
+                        <span class="kpi-icon">📈</span>
                         <div class="kpi-num">${todayProfit.toLocaleString('vi-VN')}<span class="kpi-suffix"> đ</span></div>
                         <div class="kpi-delta">${_kpiDelta(todayProfit, yesterdayProfit, profitChange)}</div>
-                        <div class="kpi-lbl">✨ Lợi nhuận hôm nay</div>
+                        <div class="kpi-lbl">Lợi nhuận hôm nay</div>
                     </div>
                     <div class="kpi-card kpi-card--amber">
-                        <span class="kpi-icon">🔥</span>
+                        <span class="kpi-icon">🛒</span>
                         <div class="kpi-num">${todayOrders.length}</div>
                         <div class="kpi-delta">${_kpiDelta(todayOrders.length, yesterdayOrders.length, orderChange)}</div>
-                        <div class="kpi-lbl">📜 Đơn hàng hôm nay</div>
+                        <div class="kpi-lbl">Đơn hàng hôm nay</div>
                     </div>
                     <div class="kpi-card kpi-card--violet">
-                        <span class="kpi-icon">⚡</span>
+                        <span class="kpi-icon">👤</span>
                         <div class="kpi-num">${customers.length}</div>
-                        <div class="kpi-delta"><span class="kpi-delta--nil">🌿 ${products.length} sản phẩm trong kho</span></div>
-                        <div class="kpi-lbl">👥 Tổng khách hàng</div>
+                        <div class="kpi-delta"><span class="kpi-delta--nil">📦 ${products.length} sản phẩm trong kho</span></div>
+                        <div class="kpi-lbl">Tổng khách hàng</div>
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <h2 class="section-title">⚡ Thao tác nhanh</h2>
+                    <h2 class="section-title">Thao tác nhanh</h2>
                     <div class="action-grid">
                         <div class="action-button" onclick="app.showCreateOrderForm()">
-                            <div class="action-icon">⚔️</div>
+                            <div class="action-icon">✍️</div>
                             <div class="action-title">Tạo đơn bán hàng</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddCustomerForm()">
-                            <div class="action-icon">👥</div>
+                            <div class="action-icon">🧑‍💼</div>
                             <div class="action-title">Thêm khách hàng</div>
                         </div>
                         
                         <div class="action-button" onclick="app.showAddProductForm()">
-                            <div class="action-icon">🌿</div>
+                            <div class="action-icon">🛒</div>
                             <div class="action-title">Thêm sản phẩm</div>
                         </div>
                         
                         <div class="action-button" onclick="app.loadPage('reports')">
-                            <div class="action-icon">📊</div>
+                            <div class="action-icon">📈</div>
                             <div class="action-title">Xem báo cáo</div>
                         </div>
                         
@@ -2373,7 +2373,7 @@ class HamobileBanhang {
                 </div>
                 <div class="dashboard-sidebar-scroll">
                 <div class="recent-activity">
-                    <h2 class="section-title">🗡️ Nhật ký
+                    <h2 class="section-title">Hoạt động gần đây 
                         <span id="dashboard-vn-clock" class="dashboard-vn-clock" aria-live="polite" aria-atomic="true">[${this.formatVietnameseTime()}]</span>
                     </h2>
                     <div id="activities-container" data-timestamp="${Date.now()}">
@@ -8447,7 +8447,7 @@ class HamobileBanhang {
                 <div class="dashboard-trend-header">
                     <div class="dashboard-trend-header-row">
                         <div>
-                            <h2 class="section-title dashboard-trend-title">⚔️ Bảo Cáo Huyết Chiến — Xu hướng Kinh doanh</h2>
+                            <h2 class="section-title dashboard-trend-title">📊 Báo cáo Phân tích Xu hướng Kinh doanh</h2>
                             <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to}</p>
                         </div>
                         <div class="dashboard-trend-period-wrap">
@@ -8475,7 +8475,7 @@ class HamobileBanhang {
                 </div>
                 <div class="dashboard-trend-row dashboard-trend-row--2-1">
                     <div class="dashboard-trend-panel">
-                        <h3 class="dashboard-trend-panel-title">🐉 Doanh thu theo thời gian</h3>
+                        <h3 class="dashboard-trend-panel-title">📈 Doanh thu theo thời gian (chuẩn báo cáo)</h3>
                         <div class="dashboard-trend-bar-chart-scroll">
                             <div class="${trendBarChartClass}">
                                 ${chartBarsHtml}
@@ -8483,7 +8483,7 @@ class HamobileBanhang {
                         </div>
                     </div>
                     <div class="dashboard-trend-panel">
-                        <h3 class="dashboard-trend-panel-title">💎 Thanh toán đơn</h3>
+                        <h3 class="dashboard-trend-panel-title">💳 Thanh toán đơn (trong kỳ)</h3>
                         <div class="dashboard-trend-donut-wrap">
                             <div class="dashboard-trend-donut">
                                 <svg width="140" height="140" style="transform:rotate(-90deg);" aria-hidden="true">
@@ -8497,10 +8497,9 @@ class HamobileBanhang {
                                             <stop offset="100%" stop-color="#f59e0b"/>
                                         </linearGradient>
                                     </defs>
-                                    <circle cx="70" cy="70" r="58" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="13"></circle>
+                                    <circle cx="70" cy="70" r="58" fill="none" stroke="#f1f5f9" stroke-width="13"></circle>
                                     <circle cx="70" cy="70" r="58" fill="none" stroke="url(#donutGradPaid)" stroke-width="13"
                                             stroke-dasharray="${((paidOrders / orderCountSafe) * 364).toFixed(1)} 364" stroke-linecap="round"></circle>
-                                    <circle cx="70" cy="70" r="42" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="8"></circle>
                                     <circle cx="70" cy="70" r="42" fill="none" stroke="url(#donutGradDebt)" stroke-width="8"
                                             stroke-dasharray="${((unpaidOrders / orderCountSafe) * 264).toFixed(1)} 264" stroke-linecap="round"></circle>
                                 </svg>
