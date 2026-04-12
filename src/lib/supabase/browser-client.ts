@@ -46,12 +46,9 @@ function installSupabaseRefreshErrorHandler() {
     if (!isNetworkFetchErr) return;
 
     const stack = reason.stack ?? "";
-    // Our custom fetch wrapper stamps __sba on errors it re-throws
-    const isStampedBySba = (reason as TypeError & { __sba?: boolean }).__sba === true;
-
-    // Dev: check class-name markers that survive source-mapping
+    // Dev: check class-name markers that survive source-mapping.
+    // In production minified builds these won't appear in the stack — handled by isProd below.
     const hasSupabaseMarker =
-      isStampedBySba ||
       (supabaseHost && stack.includes(supabaseHost)) ||
       stack.includes("GoTrueClient") ||
       stack.includes("supabase") ||
@@ -81,20 +78,6 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-    },
-    global: {
-      // Wrap fetch so that network errors inside the Supabase SDK are always caught
-      // by the SDK itself (not leaked as unhandled rejections from async timers).
-      fetch: (...args: Parameters<typeof fetch>) =>
-        fetch(...args).catch((err: unknown) => {
-          // Re-throw so the SDK can handle it normally (emit TOKEN_REFRESH_FAILED etc.)
-          // but attach a marker so our unhandledrejection handler can identify it if
-          // somehow the promise still escapes uncaught.
-          if (err instanceof TypeError) {
-            (err as TypeError & { __sba?: boolean }).__sba = true;
-          }
-          return Promise.reject(err);
-        }),
     },
   });
   return browserClient;
