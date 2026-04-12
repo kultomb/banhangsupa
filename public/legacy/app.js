@@ -8550,110 +8550,174 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="dashboard-trend-row dashboard-trend-row--3 dts-row">
-                    <!-- Card 1: Trong kỳ -->
-                    <div class="dts-card dts-card--ok">
-                        <div class="dts-accent"></div>
-                        <div class="dts-body">
-                            <div class="dts-head">
-                                <span class="dts-head-icon">✅</span>
-                                <span class="dts-head-title">Trong kỳ</span>
+                    <style>
+                        /* === WXK — Wuxia Period Summary Panels === */
+                        .wxk-panel{position:relative;background:linear-gradient(145deg,rgba(15,23,42,.97) 0%,rgba(17,24,39,.95) 50%,rgba(10,18,34,.97) 100%);border-radius:16px;border:1px solid rgba(250,204,21,.15);box-shadow:0 18px 52px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.04);padding:18px 16px 16px;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;min-width:0}
+                        .wxk-panel *{box-sizing:border-box}
+                        .wxk-panel--warn{border-color:rgba(239,68,68,.22)}
+                        .wxk-panel--jade{border-color:rgba(34,197,94,.18)}
+                        .wxk-amb{position:absolute;pointer-events:none;top:-35px;left:15%;right:15%;height:80px;border-radius:50%}
+                        .wxk-amb--gold{background:radial-gradient(ellipse,rgba(250,204,21,.1) 0%,transparent 70%);animation:wuxiaAmbient 4s ease-in-out infinite}
+                        .wxk-amb--red{background:radial-gradient(ellipse,rgba(239,68,68,.1) 0%,transparent 70%);animation:wuxiaAmbient 5.5s ease-in-out infinite}
+                        .wxk-amb--jade{background:radial-gradient(ellipse,rgba(34,197,94,.09) 0%,transparent 70%);animation:wuxiaAmbient 7s ease-in-out infinite}
+                        .wxk-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:11px;position:relative;z-index:1}
+                        .wxk-title{margin:0;font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.3}
+                        .wxk-title--gold{color:#FACC15;text-shadow:0 0 18px rgba(250,204,21,.55)}
+                        .wxk-title--red{color:#F87171;text-shadow:0 0 16px rgba(239,68,68,.5)}
+                        .wxk-title--jade{color:#4ADE80;text-shadow:0 0 16px rgba(34,197,94,.5)}
+                        .wxk-sub{font-size:9.5px;color:rgba(156,163,175,.55);letter-spacing:.04em;margin-top:3px}
+                        .wxk-badge{font-size:8.5px;font-weight:700;letter-spacing:.08em;border-radius:5px;padding:3px 8px;flex-shrink:0;margin-top:2px}
+                        .wxk-badge--gold{color:rgba(250,204,21,.75);border:1px solid rgba(250,204,21,.22);background:rgba(250,204,21,.05)}
+                        .wxk-badge--red{color:rgba(239,68,68,.85);border:1px solid rgba(239,68,68,.28);background:rgba(239,68,68,.07)}
+                        .wxk-badge--jade{color:rgba(34,197,94,.8);border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.05)}
+                        .wxk-div{height:1px;margin-bottom:13px;position:relative;z-index:1}
+                        .wxk-div--gold{background:linear-gradient(90deg,transparent,rgba(250,204,21,.4) 35%,rgba(168,85,247,.18) 70%,transparent)}
+                        .wxk-div--red{background:linear-gradient(90deg,transparent,rgba(239,68,68,.42) 35%,rgba(251,146,60,.18) 70%,transparent)}
+                        .wxk-div--jade{background:linear-gradient(90deg,transparent,rgba(34,197,94,.42) 35%,rgba(6,182,212,.18) 70%,transparent)}
+                        /* Stat circles */
+                        .wxk-srow{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:13px;position:relative;z-index:1}
+                        .wxk-stat{text-align:center;padding:10px 5px 9px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08)}
+                        .wxk-sv{display:block;font-size:20px;font-weight:900;letter-spacing:-.02em;line-height:1.2}
+                        .wxk-sv--g{color:#FACC15;text-shadow:0 0 14px rgba(250,204,21,.52)}
+                        .wxk-sv--b{color:#60A5FA;text-shadow:0 0 14px rgba(59,130,246,.45)}
+                        .wxk-sv--e{color:#4ADE80;text-shadow:0 0 14px rgba(34,197,94,.45)}
+                        .wxk-sl{display:block;font-size:9px;color:rgba(148,163,184,.65);letter-spacing:.03em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                        /* KV rows */
+                        .wxk-kvs{position:relative;z-index:1}
+                        .wxk-kv{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+                        .wxk-kv:last-child{border-bottom:none}
+                        .wxk-kl{font-size:11px;color:rgba(148,163,184,.78)}
+                        .wxk-kv-val{font-size:12.5px;font-weight:700;color:#FACC15;text-shadow:0 0 10px rgba(250,204,21,.3)}
+                        /* Alert rows */
+                        .wxk-als{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
+                        .wxk-al{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025);transition:border-color .2s}
+                        .wxk-al--hot{border-color:rgba(239,68,68,.32);background:rgba(239,68,68,.055)}
+                        .wxk-al--warm{border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.05)}
+                        .wxk-al--ok{border-color:rgba(34,197,94,.22);background:rgba(34,197,94,.04)}
+                        .wxk-anum{flex-shrink:0;min-width:42px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px}
+                        .wxk-anum--hot{border:1px solid rgba(239,68,68,.42);color:#F87171;background:rgba(239,68,68,.12)}
+                        .wxk-anum--warm{border:1px solid rgba(251,146,60,.38);color:#FB923C;background:rgba(251,146,60,.1);font-size:10px}
+                        .wxk-anum--ok{border:1px solid rgba(34,197,94,.3);color:#4ADE80;background:rgba(34,197,94,.09)}
+                        .wxk-anum--muted{border:1px solid rgba(156,163,175,.18);color:#9CA3AF;background:rgba(156,163,175,.06)}
+                        .wxk-ai{flex:1;min-width:0}
+                        .wxk-al-lbl{display:block;font-size:11px;font-weight:600;color:rgba(226,232,240,.9);letter-spacing:.02em;line-height:1.3}
+                        .wxk-al-sub{display:block;font-size:9.5px;color:rgba(148,163,184,.6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                        /* Strategy tips */
+                        .wxk-tips{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
+                        .wxk-tip{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border-radius:10px;border:1px solid rgba(34,197,94,.13);background:rgba(34,197,94,.03);transition:border-color .2s,background .2s;cursor:default}
+                        .wxk-tip:hover{border-color:rgba(34,197,94,.32);background:rgba(34,197,94,.08)}
+                        .wxk-tico{flex-shrink:0;font-size:14px;line-height:1.5}
+                        .wxk-ttxt{font-size:11.5px;color:rgba(209,250,229,.85);line-height:1.5;letter-spacing:.01em}
+                    </style>
+                    <!-- Card 1: Chiến Tích Kỳ Này -->
+                    <div class="wxk-panel">
+                        <div class="wxk-amb wxk-amb--gold" aria-hidden="true"></div>
+                        <div class="wxk-head">
+                            <div>
+                                <h3 class="wxk-title wxk-title--gold">📜 Chiến Tích Kỳ Này</h3>
+                                <div class="wxk-sub">Tổng kết hiệu quả kinh doanh</div>
                             </div>
-                            <div class="dts-stat-grid">
-                                <div class="dts-stat dts-stat--green">
-                                    <span class="dts-stat-val">${customersInPeriod}</span>
-                                    <span class="dts-stat-lbl">👥 Khách GD</span>
-                                </div>
-                                <div class="dts-stat dts-stat--green">
-                                    <span class="dts-stat-val">${finalizedOrders.length}</span>
-                                    <span class="dts-stat-lbl">🧾 Đơn chốt</span>
-                                </div>
-                                <div class="dts-stat dts-stat--green">
-                                    <span class="dts-stat-val">${completedPct}%</span>
-                                    <span class="dts-stat-lbl">✔ Hoàn thành</span>
+                            <span class="wxk-badge wxk-badge--gold">THÀNH TÍCH</span>
+                        </div>
+                        <div class="wxk-div wxk-div--gold"></div>
+                        <div class="wxk-srow">
+                            <div class="wxk-stat">
+                                <span class="wxk-sv wxk-sv--g">${customersInPeriod}</span>
+                                <span class="wxk-sl">👥 Khách GD</span>
+                            </div>
+                            <div class="wxk-stat">
+                                <span class="wxk-sv wxk-sv--b">${finalizedOrders.length}</span>
+                                <span class="wxk-sl">🧾 Đơn chốt</span>
+                            </div>
+                            <div class="wxk-stat">
+                                <span class="wxk-sv wxk-sv--e">${completedPct}%</span>
+                                <span class="wxk-sl">✔ HT</span>
+                            </div>
+                        </div>
+                        <div class="wxk-kvs">
+                            <div class="wxk-kv">
+                                <span class="wxk-kl">💰 TB/giao dịch</span>
+                                <strong class="wxk-kv-val">${avgOrderValue.toLocaleString('vi-VN')} đ</strong>
+                            </div>
+                            <div class="wxk-kv">
+                                <span class="wxk-kl">📈 Biên LN gộp</span>
+                                <strong class="wxk-kv-val">${profitMarginKpi}%</strong>
+                            </div>
+                            <div class="wxk-kv">
+                                <span class="wxk-kl">📦 Mặt hàng HT</span>
+                                <strong class="wxk-kv-val">${products.length}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 2: Quân Tình Cảnh Báo -->
+                    <div class="wxk-panel wxk-panel--warn">
+                        <div class="wxk-amb wxk-amb--red" aria-hidden="true"></div>
+                        <div class="wxk-head">
+                            <div>
+                                <h3 class="wxk-title wxk-title--red">⚔️ Quân Tình Báo</h3>
+                                <div class="wxk-sub">Rủi ro cần xử lý trong kỳ</div>
+                            </div>
+                            <span class="wxk-badge wxk-badge--red">${[lowStockProducts.length > 0, totalDebt > 0, unpaidOrders > 0].filter(Boolean).length} MỤC</span>
+                        </div>
+                        <div class="wxk-div wxk-div--red"></div>
+                        <div class="wxk-als">
+                            <div class="wxk-al${lowStockProducts.length > 0 ? ' wxk-al--hot' : ''}">
+                                <div class="wxk-anum ${lowStockProducts.length > 0 ? 'wxk-anum--hot' : 'wxk-anum--muted'}">${lowStockProducts.length}</div>
+                                <div class="wxk-ai">
+                                    <span class="wxk-al-lbl">SP sắp hết tồn kho</span>
+                                    <span class="wxk-al-sub">${lowStockProducts.length > 0 ? 'Cần nhập thêm ngay' : 'Tồn kho ổn định'}</span>
                                 </div>
                             </div>
-                            <div class="dts-kv-list">
-                                <div class="dts-kv">
-                                    <span class="dts-kv-lbl">💰 TB/giao dịch</span>
-                                    <strong class="dts-kv-val dts-kv-val--green">${avgOrderValue.toLocaleString('vi-VN')} đ</strong>
+                            <div class="wxk-al${totalDebt > 0 ? ' wxk-al--warm' : ' wxk-al--ok'}">
+                                <div class="wxk-anum ${totalDebt > 0 ? 'wxk-anum--warm' : 'wxk-anum--ok'}">${totalDebt >= 1000000 ? (totalDebt/1000000).toFixed(1).replace(/\.?0+$/,'')+'M' : totalDebt > 0 ? totalDebt.toLocaleString('vi-VN') : '0'}</div>
+                                <div class="wxk-ai">
+                                    <span class="wxk-al-lbl">Công nợ tổng KH</span>
+                                    <span class="wxk-al-sub">${debtCustomerCount} khách · đơn hàng + SC</span>
                                 </div>
-                                <div class="dts-kv">
-                                    <span class="dts-kv-lbl">📈 Biên LN gộp</span>
-                                    <strong class="dts-kv-val dts-kv-val--green">${profitMarginKpi}%</strong>
+                            </div>
+                            <div class="wxk-al${unpaidOrders > 0 ? ' wxk-al--hot' : ''}">
+                                <div class="wxk-anum ${unpaidOrders > 0 ? 'wxk-anum--hot' : 'wxk-anum--muted'}">${unpaidOrders}</div>
+                                <div class="wxk-ai">
+                                    <span class="wxk-al-lbl">Đơn công nợ trong kỳ</span>
+                                    <span class="wxk-al-sub">${unpaidOrders > 0 ? 'Chưa thanh toán' : 'Tất cả đã thanh toán'}</span>
                                 </div>
-                                <div class="dts-kv">
-                                    <span class="dts-kv-lbl">📦 Mặt hàng HT</span>
-                                    <strong class="dts-kv-val dts-kv-val--green">${products.length}</strong>
+                            </div>
+                            <div class="wxk-al${repairsReturned.length > 0 ? ' wxk-al--ok' : ''}">
+                                <div class="wxk-anum ${repairsReturned.length > 0 ? 'wxk-anum--ok' : 'wxk-anum--muted'}">${repairsReturned.length}</div>
+                                <div class="wxk-ai">
+                                    <span class="wxk-al-lbl">Phiếu SC đã trả kỳ</span>
+                                    <span class="wxk-al-sub">Doanh thu sửa chữa</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 2: Cần lưu ý -->
-                    <div class="dts-card dts-card--warn">
-                        <div class="dts-accent"></div>
-                        <div class="dts-body">
-                            <div class="dts-head">
-                                <span class="dts-head-icon">⚠️</span>
-                                <span class="dts-head-title">Cần lưu ý</span>
-                                <span class="dts-badge dts-badge--red">4 mục</span>
+                    <!-- Card 3: Mưu Sĩ Hiến Kế -->
+                    <div class="wxk-panel wxk-panel--jade">
+                        <div class="wxk-amb wxk-amb--jade" aria-hidden="true"></div>
+                        <div class="wxk-head">
+                            <div>
+                                <h3 class="wxk-title wxk-title--jade">🧠 Mưu Sĩ Hiến Kế</h3>
+                                <div class="wxk-sub">Chiến lược tối ưu hoá doanh thu</div>
                             </div>
-                            <div class="dts-alert-list">
-                                <div class="dts-alert${lowStockProducts.length > 0 ? ' dts-alert--active' : ''}">
-                                    <span class="dts-alert-num">${lowStockProducts.length}</span>
-                                    <div class="dts-alert-info">
-                                        <span class="dts-alert-label">SP sắp hết tồn kho</span>
-                                        <span class="dts-alert-sub">Cần nhập thêm</span>
-                                    </div>
-                                </div>
-                                <div class="dts-alert${totalDebt > 0 ? ' dts-alert--active' : ''}">
-                                    <span class="dts-alert-num dts-alert-num--sm">${totalDebt >= 1000000 ? (totalDebt/1000000).toFixed(2).replace(/\.?0+$/,'')+'M' : totalDebt.toLocaleString('vi-VN')+'đ'}</span>
-                                    <div class="dts-alert-info">
-                                        <span class="dts-alert-label">Công nợ tổng KH</span>
-                                        <span class="dts-alert-sub">${debtCustomerCount} khách · đơn hàng + SC</span>
-                                    </div>
-                                </div>
-                                <div class="dts-alert${unpaidOrders > 0 ? ' dts-alert--active' : ''}">
-                                    <span class="dts-alert-num">${unpaidOrders}</span>
-                                    <div class="dts-alert-info">
-                                        <span class="dts-alert-label">Đơn công nợ trong kỳ</span>
-                                        <span class="dts-alert-sub">Chưa thanh toán</span>
-                                    </div>
-                                </div>
-                                <div class="dts-alert">
-                                    <span class="dts-alert-num">${repairsReturned.length}</span>
-                                    <div class="dts-alert-info">
-                                        <span class="dts-alert-label">Phiếu SC đã trả kỳ</span>
-                                        <span class="dts-alert-sub">Doanh thu sửa chữa</span>
-                                    </div>
-                                </div>
-                            </div>
+                            <span class="wxk-badge wxk-badge--jade">BINH PHÁP</span>
                         </div>
-                    </div>
-                    <!-- Card 3: Gợi ý -->
-                    <div class="dts-card dts-card--tip">
-                        <div class="dts-accent"></div>
-                        <div class="dts-body">
-                            <div class="dts-head">
-                                <span class="dts-head-icon">🎯</span>
-                                <span class="dts-head-title">Gợi ý hành động</span>
+                        <div class="wxk-div wxk-div--jade"></div>
+                        <div class="wxk-tips">
+                            <div class="wxk-tip">
+                                <span class="wxk-tico">📦</span>
+                                <span class="wxk-ttxt">${lowStockProducts.length > 0 ? 'Nhập thêm ' + lowStockProducts.length + ' SP sắp hết tồn kho trước khi mất đơn hàng' : 'Nhập thêm hàng bán chạy trong kỳ để duy trì doanh thu'}</span>
                             </div>
-                            <div class="dts-action-list">
-                                <div class="dts-action">
-                                    <span class="dts-action-arrow">→</span>
-                                    <span class="dts-action-txt">Nhập thêm hàng bán chạy trong kỳ</span>
-                                </div>
-                                <div class="dts-action">
-                                    <span class="dts-action-arrow">→</span>
-                                    <span class="dts-action-txt">Khuyến mãi SP ít bán để giải phóng hàng tồn</span>
-                                </div>
-                                <div class="dts-action">
-                                    <span class="dts-action-arrow">→</span>
-                                    <span class="dts-action-txt">Tăng giá trị đơn trung bình qua upsell/combo</span>
-                                </div>
-                                <div class="dts-action">
-                                    <span class="dts-action-arrow">→</span>
-                                    <span class="dts-action-txt">Thu hồi công nợ đến hạn từ khách cũ</span>
-                                </div>
+                            <div class="wxk-tip">
+                                <span class="wxk-tico">🎯</span>
+                                <span class="wxk-ttxt">Tăng giá trị đơn trung bình qua upsell/combo sản phẩm</span>
+                            </div>
+                            <div class="wxk-tip">
+                                <span class="wxk-tico">📢</span>
+                                <span class="wxk-ttxt">Khuyến mãi SP ít bán để giải phóng hàng tồn kho</span>
+                            </div>
+                            <div class="wxk-tip">
+                                <span class="wxk-tico">💰</span>
+                                <span class="wxk-ttxt">${totalDebt > 0 ? 'Thu hồi ' + debtCustomerCount + ' khoản công nợ KH đang tồn đọng' : 'Chủ động liên hệ khách cũ để tăng tần suất mua'}</span>
                             </div>
                         </div>
                     </div>
