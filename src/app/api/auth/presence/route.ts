@@ -53,28 +53,11 @@ export async function POST(request: Request) {
     }
 
     if (deviceId) {
-      // Kiểm tra xem thiết bị có còn trong device_sessions không
-      const { data: session } = await admin
-        .from("device_sessions")
-        .select("device_id")
-        .eq("user_id", decoded.uid)
-        .eq("device_id", deviceId)
-        .maybeSingle();
-
-      if (!session) {
-        // Thiết bị đã bị kick (record bị xóa khi thiết bị thứ 3 đăng nhập)
-        return new Response(JSON.stringify({ kicked: true }), {
-          status: 200,
-          headers: { "content-type": "application/json; charset=utf-8" },
-        });
-      }
-
-      // Cập nhật last_seen_at để thiết bị không bị coi là stale
-      await admin
-        .from("device_sessions")
-        .update({ last_seen_at: new Date(now).toISOString() })
-        .eq("user_id", decoded.uid)
-        .eq("device_id", deviceId);
+      // Upsert device session — giữ tracking, không kick
+      await admin.from("device_sessions").upsert(
+        { user_id: decoded.uid, device_id: deviceId, last_seen_at: new Date(now).toISOString() },
+        { onConflict: "user_id,device_id" },
+      );
     }
 
     // Luôn cập nhật last_seen trong user_profiles

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getAuthClient } from "@/lib/db";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import AccountBar from "@/components/AccountBar";
 import { confirmDialog } from "@/components/confirm-dialog";
 import type { ConfirmDialogOptions } from "@/components/confirm-dialog";
@@ -17,6 +18,7 @@ const PM_GET = "HANGHO_GET_ID_TOKEN";
 const PM_TOKEN = "HANGHO_ID_TOKEN";
 const PM_CONFIRM = "HANGHO_CONFIRM";
 const PM_CONFIRM_RESULT = "HANGHO_CONFIRM_RESULT";
+const PM_DATA_CHANGED = "HANGHO_DATA_CHANGED";
 
 async function readHanghoIdToken(): Promise<string | null> {
   const u = getAuthClient().getCurrentUser();
@@ -87,6 +89,31 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
       delete window.__hanghoGetIdToken;
     };
   }, []);
+
+  // Subscribe to Postgres Changes on pos_version_log — broadcast data-changed to iframe
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    const channel = supabase.channel(`pos-version-${shop}`).on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "pos_version_log" },
+      (payload) => {
+        const row = payload.new as { shop_key?: string; write_version?: number } | undefined;
+        if (!row?.shop_key) return;
+        // Match both shop_<slug> and shop_try-<slug>
+        if (!row.shop_key.endsWith(shop)) return;
+        const iframe = iframeRef.current?.contentWindow;
+        if (!iframe) return;
+        iframe.postMessage(
+          { type: PM_DATA_CHANGED, writeVersion: row.write_version ?? 0 },
+          window.location.origin,
+        );
+      },
+    );
+    channel.subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [shop]);
 
   const onFrameLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const doc = e.currentTarget.contentDocument;

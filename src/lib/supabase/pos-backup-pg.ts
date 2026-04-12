@@ -280,6 +280,13 @@ export async function proxyPosBackupPostgres(params: {
       if (error) {
         return jsonError(500, "write_failed", "Không ghi được CSDL.");
       }
+
+      // Broadcast new version for real-time sync across devices (fire-and-forget, non-blocking)
+      void admin.from("pos_version_log").upsert(
+        { shop_key: allowedShopKey, write_version: safeSrvWrite + 1, updated_at: new Date().toISOString() },
+        { onConflict: "shop_key" },
+      );
+
       return new Response(JSON.stringify(merged ?? null), {
         status: 200,
         headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },

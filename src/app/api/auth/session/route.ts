@@ -11,9 +11,7 @@ const COOKIE_NAME = "ha_session_token";
 const SHOP_COOKIE_NAME = "ha_shop_slug";
 const DEVICE_COOKIE_NAME = "ha_device_id";
 
-/** Tối đa 2 thiết bị đăng nhập đồng thời. Thiết bị thứ 3 → kick thiết bị ít hoạt động nhất. */
-const MAX_DEVICES = 2;
-/** Phiên thiết bị không ping trong 24h → coi như offline, xóa khỏi slot trước khi đếm. */
+/** Phiên thiết bị không ping trong 24h → coi như offline, dọn dẹp định kỳ. */
 const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(request: Request) {
@@ -66,10 +64,8 @@ export async function POST(request: Request) {
     }
 
     const deviceId = String(body?.deviceId || "").trim().slice(0, 128);
-    let kickedDeviceId: string | null = null;
 
     if (deviceId) {
-      // Lưu deviceId vào cookie để DELETE endpoint có thể dọn record khi user logout
       jar.set(DEVICE_COOKIE_NAME, deviceId, {
         httpOnly: true,
         secure: isHttps,
@@ -78,50 +74,29 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       });
 
+      // Track device for analytics — không còn giới hạn số thiết bị, không kick
       try {
         const admin = createSupabaseAdminClient();
         const uid = decoded.uid;
         const now = new Date().toISOString();
         const staleThreshold = new Date(Date.now() - STALE_SESSION_MS).toISOString();
 
-        // 1. Xóa các phiên đã stale (không ping > 24h) để giải phóng slot
         await admin
           .from("device_sessions")
           .delete()
           .eq("user_id", uid)
           .lt("last_seen_at", staleThreshold);
 
-        // 2. Upsert phiên của thiết bị này
         await admin.from("device_sessions").upsert(
           { user_id: uid, device_id: deviceId, last_seen_at: now },
           { onConflict: "user_id,device_id" },
         );
-
-        // 3. Đếm số thiết bị đang active, sắp xếp theo last_seen_at tăng dần (ít dùng nhất đầu tiên)
-        const { data: sessions } = await admin
-          .from("device_sessions")
-          .select("device_id, last_seen_at")
-          .eq("user_id", uid)
-          .order("last_seen_at", { ascending: true });
-
-        if (sessions && sessions.length > MAX_DEVICES) {
-          // 4. Kick thiết bị ít hoạt động nhất (đứng đầu danh sách), ưu tiên kick thiết bị khác
-          const toKick = sessions.find((s) => s.device_id !== deviceId) ?? sessions[0];
-          if (toKick && toKick.device_id !== deviceId) {
-            kickedDeviceId = toKick.device_id as string;
-            await admin
-              .from("device_sessions")
-              .delete()
-              .eq("user_id", uid)
-              .eq("device_id", toKick.device_id);
-          }
-        }
       } catch {
-        // Device session management non-critical — không chặn đăng nhập
+        // Non-critical
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, kickedDeviceId }), {
+    return new Response(JSON.stringify({ ok: true }), {
       headers: { "content-type": "application/json; charset=utf-8" },
     });
   } catch {

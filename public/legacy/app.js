@@ -201,6 +201,104 @@ async function haRequestIdTokenFromParentViaPostMessage() {
         }
     });
 }
+
+/**
+ * Smart merge khi 409 stale_data: áp dụng delta từ thiết bị này lên dữ liệu mới nhất của server.
+ * Tránh ghi đè đơn hàng và thay đổi tồn kho từ thiết bị khác.
+ */
+function haMergePosDataOnConflict(originalLocal, pendingLocal, serverLatest) {
+    if (!serverLatest || typeof serverLatest !== 'object') return pendingLocal;
+    var merged = JSON.parse(JSON.stringify(serverLatest));
+
+    // Products: áp dụng delta tồn kho từ thiết bị này lên bản server mới nhất
+    try {
+        var origProds = Array.isArray(originalLocal.products) ? originalLocal.products : [];
+        var pendProds = Array.isArray(pendingLocal.products) ? pendingLocal.products : [];
+        var srvProds = Array.isArray(serverLatest.products) ? serverLatest.products : [];
+        merged.products = srvProds.map(function (sp) {
+            var op = origProds.find(function (p) { return p && p.id === sp.id; });
+            var pp = pendProds.find(function (p) { return p && p.id === sp.id; });
+            if (!op || !pp) return sp;
+            var stockDelta = (Number(pp.stock) || 0) - (Number(op.stock) || 0);
+            if (stockDelta === 0) return sp;
+            return Object.assign({}, sp, { stock: Math.max(0, (Number(sp.stock) || 0) + stockDelta) });
+        });
+    } catch (_) {}
+
+    // Orders: gộp đơn mới của thiết bị này vào danh sách đã có trên server
+    try {
+        var origOrderIds = new Set((Array.isArray(originalLocal.orders) ? originalLocal.orders : []).map(function (o) { return o && o.id; }));
+        var srvOrderIds = new Set((Array.isArray(serverLatest.orders) ? serverLatest.orders : []).map(function (o) { return o && o.id; }));
+        var newOrders = (Array.isArray(pendingLocal.orders) ? pendingLocal.orders : [])
+            .filter(function (o) { return o && o.id && !origOrderIds.has(o.id) && !srvOrderIds.has(o.id); });
+        merged.orders = (serverLatest.orders || []).concat(newOrders);
+    } catch (_) {}
+
+    // Repairs: gộp phiếu sửa chữa mới
+    try {
+        var origRepIds = new Set((Array.isArray(originalLocal.repairs) ? originalLocal.repairs : []).map(function (r) { return r && r.id; }));
+        var srvRepIds = new Set((Array.isArray(serverLatest.repairs) ? serverLatest.repairs : []).map(function (r) { return r && r.id; }));
+        var newReps = (Array.isArray(pendingLocal.repairs) ? pendingLocal.repairs : [])
+            .filter(function (r) { return r && r.id && !origRepIds.has(r.id) && !srvRepIds.has(r.id); });
+        merged.repairs = (serverLatest.repairs || []).concat(newReps);
+    } catch (_) {}
+
+    // Các trường metadata: dùng giá trị của thiết bị này (customers, categories, settings)
+    ['customers', 'categories', 'settings'].forEach(function (f) {
+        if (pendingLocal[f] !== undefined) merged[f] = pendingLocal[f];
+    });
+
+    return merged;
+}
+
+/** Đồng bộ real-time: nhận thông báo từ ShopLegacyFrame khi thiết bị khác vừa lưu dữ liệu. */
+(function installDataSyncListener() {
+    var _knownDataVersion = 0;
+    var _lastInteractionAt = Date.now();
+    var _interactionEvents = ['click', 'keydown', 'touchstart', 'pointerdown'];
+    _interactionEvents.forEach(function (ev) {
+        document.addEventListener(ev, function () { _lastInteractionAt = Date.now(); }, { passive: true });
+    });
+
+    window.addEventListener('message', function (e) {
+        if (!e || e.origin !== window.location.origin) return;
+        var d = e.data;
+        if (!d || d.type !== 'HANGHO_DATA_CHANGED') return;
+
+        var incomingVersion = Number(d.writeVersion) || 0;
+        if (incomingVersion <= _knownDataVersion) return;
+        _knownDataVersion = incomingVersion;
+
+        var fs = window.FirebaseStorage;
+        var app = window.app;
+        if (!fs || !app || !app._ready) return;
+
+        var isIdle = Date.now() - _lastInteractionAt > 5000;
+        var hasModal = !!document.querySelector('[id$="-modal"]:not([style*="display:none"]):not([style*="display: none"])');
+
+        if (isIdle && !hasModal) {
+            fs.load().then(function (loaded) {
+                if (!haIsLoadedPosPackage(loaded)) return;
+                app.demoData = loaded.data;
+                if (window.companyAssets) {
+                    window.companyAssets.logo = (loaded.company && loaded.company.logo) || null;
+                    window.companyAssets.qr = (loaded.company && (loaded.company.qrCode || loaded.company.qr)) || null;
+                }
+                if (typeof app.migrateProductData === 'function') app.migrateProductData();
+                if (typeof app.showPage === 'function') app.showPage(app._currentPage);
+                else if (typeof app.refreshDashboard === 'function') app.refreshDashboard();
+                if (typeof app.showNotification === 'function') {
+                    app.showNotification('✅ Đã đồng bộ dữ liệu từ thiết bị khác', 'success', 2500);
+                }
+            }).catch(function () {});
+        } else {
+            if (typeof app.showNotification === 'function') {
+                app.showNotification('📡 Thiết bị khác vừa cập nhật dữ liệu. Lưu xong rồi tải lại để đồng bộ.', 'info', 6000);
+            }
+        }
+    });
+}());
+
 window.FirebaseStorage = {
     _cache: { data: null, company: {}, meta: {} },
     _config: null,
@@ -551,7 +649,8 @@ window.FirebaseStorage = {
                     ? haParseSyncHttpError(res.status, resText)
                     : { code: 'unknown_error', serverError: '', serverMessage: '', requestId: undefined };
             if (pSave.code === 'stale_data' && !_retried) {
-                // Rebase writeVersion từ cloud và thử lưu lại 1 lần với local draft hiện tại.
+                // Snapshot trạng thái trước khi reload (để tính delta)
+                const beforeReloadData = JSON.parse(JSON.stringify(this._cache.data || {}));
                 const latest = await this.load().catch(() => null);
                 const latestMeta = latest && latest.meta && typeof latest.meta === 'object' ? latest.meta : (this._cache.meta || {});
                 const retryMeta = Object.assign({}, payload.meta || {}, {
@@ -560,8 +659,12 @@ window.FirebaseStorage = {
                             ? latestMeta.writeVersion
                             : 0,
                 });
+                // Smart merge: áp dụng thay đổi của thiết bị này lên dữ liệu mới nhất từ server
+                const mergedData = latest && latest.data
+                    ? haMergePosDataOnConflict(beforeReloadData, body.data, latest.data)
+                    : body.data;
                 return this.save({
-                    data: body.data,
+                    data: mergedData,
                     company: body.company,
                     meta: retryMeta,
                 }, true);
