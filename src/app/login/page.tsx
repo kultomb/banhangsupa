@@ -152,12 +152,12 @@ function LoginContent() {
       if (sessionRestoreLockRef.current) return;
       sessionRestoreLockRef.current = true;
       setAuthBootstrapping(true);
-      /** Đã bắt đầu chuyển trang — không tắt spinner trong finally (tránh flash form trước khi Next kịp điều hướng). */
       let navigatedAway = false;
+      // Hard safety: nếu mọi thứ treo quá 12s thì tắt spinner, không để user chờ mãi.
       const safetyId = window.setTimeout(() => {
         sessionRestoreLockRef.current = false;
         setAuthBootstrapping(false);
-      }, 25000);
+      }, 12000);
       try {
         const nextPath = safeInternalNextPath(nextParamRef.current);
         let profileTimeoutId: number | undefined;
@@ -166,7 +166,7 @@ function LoginContent() {
             return await Promise.race([
               resolveUserProfile(user.uid),
               new Promise<never>((_, rej) => {
-                profileTimeoutId = window.setTimeout(() => rej(new Error("profile-timeout")), 12000);
+                profileTimeoutId = window.setTimeout(() => rej(new Error("profile-timeout")), 8000);
               }),
             ]);
           } finally {
@@ -176,7 +176,7 @@ function LoginContent() {
         if (!hasValidShopSlug(profile.shopSlug)) {
           await Promise.race([
             forceLogoutMissingShop(),
-            new Promise<void>((r) => setTimeout(r, 12000)),
+            new Promise<void>((r) => setTimeout(r, 8000)),
           ]);
           return;
         }
@@ -192,7 +192,7 @@ function LoginContent() {
               return await Promise.race([
                 user.getIdToken(),
                 new Promise<never>((_, rej) => {
-                  tokenTimeoutId = window.setTimeout(() => rej(new Error("token-timeout")), 8000);
+                  tokenTimeoutId = window.setTimeout(() => rej(new Error("token-timeout")), 5000);
                 }),
               ]);
             } finally {
@@ -203,9 +203,11 @@ function LoginContent() {
           setError("Không lấy được token phiên (hết thời gian hoặc lỗi). Thử tải lại trang.");
           return;
         }
-        const sessionOk = await postSessionCookieWithRetries(idToken, {
-          shopSlug: profile.shopSlug,
-        });
+        // Giới hạn cookie sync tối đa 5s — không retry nhiều lần trên login page.
+        const sessionOk = await Promise.race([
+          postSessionCookieWithRetries(idToken, { shopSlug: profile.shopSlug }),
+          new Promise<false>((resolve) => window.setTimeout(() => resolve(false), 5000)),
+        ]);
         if (!sessionOk) {
           setError("Chưa đồng bộ cookie phiên. Kiểm tra mạng rồi tải lại trang.");
           return;
@@ -231,13 +233,18 @@ function LoginContent() {
         return;
       } catch (e) {
         if (e instanceof Error && e.message === "profile-timeout") {
-          setError("Hết thời gian tải hồ sơ. Kiểm tra NEXT_PUBLIC_SUPABASE_URL / mạng rồi tải lại trang.");
+          setError("Hết thời gian tải hồ sơ. Kiểm tra mạng rồi tải lại trang.");
         }
       } finally {
         window.clearTimeout(safetyId);
         sessionRestoreLockRef.current = false;
         if (!navigatedAway) {
+          // Không đi đâu (lỗi hoặc điều kiện sớm return) → tắt spinner.
           window.setTimeout(() => setAuthBootstrapping(false), 250);
+        } else {
+          // Navigation đã được gọi — component sẽ unmount khi route đổi.
+          // Nhưng nếu router chậm/lỗi, tắt spinner sau 4s để tránh treo.
+          window.setTimeout(() => setAuthBootstrapping(false), 4000);
         }
       }
     },
