@@ -5,58 +5,83 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 let browserClient: SupabaseClient | undefined;
 
 /**
- * Suppress unhandled "Failed to fetch" rejections thrown by Supabase's background token-refresh
- * timer.  The SDK already emits TOKEN_REFRESH_FAILED and retries automatically — the raw
- * rejection is noise that we don't want surfaced in the console.
+ * ROOT CAUSE (confirmed by reading Supabase auth-js source):
  *
- * WHY the previous check (stack.includes("GoTrueClient")) failed in production:
- *   Next.js minifies the bundle → error.stack contains "/_next/static/chunks/abc.js:1:234"
- *   not the original class names.  DevTools shows source-mapped names, but error.stack is
- *   the raw minified string, so the class-name check always returned false in production.
+ * In `node_modules/@supabase/auth-js/dist/module/lib/fetch.js`, inside `_handleRequest`:
  *
- * New strategy:
- *   1. Match on error type (TypeError) + message pattern — these are always network errors.
- *   2. In development we still check the stack for Supabase markers so we don't hide real bugs.
- *   3. In production we suppress all unhandled TypeError("Failed to fetch | Load failed")
- *      because any real fetch error a dev needs to see should already be caught at call-site.
+ *   } catch (e) {
+ *     console.error(e);   ← the SDK itself calls console.error() on every fetch failure
+ *     throw new AuthRetryableFetchError(...)
+ *   }
+ *
+ * This means:
+ *   - The error IS caught by the SDK internally → AuthRetryableFetchError → handled gracefully
+ *   - But `console.error(e)` fires BEFORE any of our code runs → cannot be suppressed
+ *     by an `unhandledrejection` handler (that only covers uncaught promise rejections)
+ *
+ * FIX — two layers:
+ *
+ * 1. Patch console.error to filter out raw TypeError("Failed to fetch") calls.
+ *    The SDK passes the raw TypeError as the first argument, making this easy to detect.
+ *    In dev we also check the stack trace; in production we suppress all such TypeErrors
+ *    because real network errors in app code must be caught at the call-site, not
+ *    surfaced via console.error for the user to see.
+ *
+ * 2. Keep the unhandledrejection handler as a fallback in case any rejection still
+ *    escapes the SDK's catch (e.g. if the SDK version changes).
  */
-function installSupabaseRefreshErrorHandler() {
+function installSupabaseNoiseSuppress() {
   if (typeof window === "undefined") return;
-  // Guard against multiple calls (e.g. hot-reload in dev)
-  if ((window as { __sbaErrHandlerInstalled?: boolean }).__sbaErrHandlerInstalled) return;
-  (window as { __sbaErrHandlerInstalled?: boolean }).__sbaErrHandlerInstalled = true;
+  if ((window as { __sbaNoiseInstalled?: boolean }).__sbaNoiseInstalled) return;
+  (window as { __sbaNoiseInstalled?: boolean }).__sbaNoiseInstalled = true;
 
   const supabaseHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")
     .replace(/^https?:\/\//, "")
     .split("/")[0];
   const isProd = process.env.NODE_ENV === "production";
 
-  window.addEventListener("unhandledrejection", (event) => {
-    const reason = event.reason;
-    // Only intercept network-level TypeError thrown by fetch()
-    if (!(reason instanceof TypeError)) return;
+  /** Returns true for transient network-level fetch errors (not app logic errors). */
+  function isNetworkFetchTypError(err: unknown): boolean {
+    if (!(err instanceof TypeError)) return false;
+    const msg = err.message ?? "";
+    return (
+      msg === "Failed to fetch" ||                               // Chrome / Firefox
+      msg === "Load failed" ||                                   // Safari
+      msg === "NetworkError when attempting to fetch resource"   // Firefox alt
+    );
+  }
 
-    const msg = reason.message ?? "";
-    const isNetworkFetchErr =
-      msg === "Failed to fetch" ||      // Chrome / Firefox
-      msg === "Load failed" ||          // Safari
-      msg === "NetworkError when attempting to fetch resource" ||
-      msg.includes("network error");
-
-    if (!isNetworkFetchErr) return;
-
-    const stack = reason.stack ?? "";
-    // Dev: check class-name markers that survive source-mapping.
-    // In production minified builds these won't appear in the stack — handled by isProd below.
-    const hasSupabaseMarker =
-      (supabaseHost && stack.includes(supabaseHost)) ||
+  /** Returns true if the stack trace suggests the error originated in Supabase auth-js. */
+  function looksLikeSupabaseStack(err: TypeError): boolean {
+    const stack = err.stack ?? "";
+    return (
+      (!!supabaseHost && stack.includes(supabaseHost)) ||
       stack.includes("GoTrueClient") ||
       stack.includes("supabase") ||
-      stack.includes("auth-js");
+      stack.includes("auth-js")
+    );
+  }
 
-    // In production minified builds there are no class names in the stack, so we suppress
-    // all unhandled fetch TypeErrors — real errors must be caught at the call-site anyway.
-    if (hasSupabaseMarker || isProd) {
+  // ── Layer 1: patch console.error ──────────────────────────────────────────
+  // Supabase's _handleRequest does `console.error(e)` before converting the
+  // TypeError into an AuthRetryableFetchError. We intercept it here.
+  const origError = console.error.bind(console) as (...a: unknown[]) => void;
+  console.error = (...args: unknown[]) => {
+    const first = args[0];
+    if (isNetworkFetchTypError(first)) {
+      // In production: always suppress (real errors must be caught at call-site).
+      // In development: suppress only if the stack points to Supabase internals
+      //   so developers still see app-level network bugs.
+      if (isProd || looksLikeSupabaseStack(first as TypeError)) return;
+    }
+    origError(...args);
+  };
+
+  // ── Layer 2: unhandledrejection fallback ──────────────────────────────────
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    if (!isNetworkFetchTypError(reason)) return;
+    if (looksLikeSupabaseStack(reason as TypeError) || isProd) {
       event.preventDefault();
     }
   });
@@ -72,7 +97,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
   if (!url || !anon) {
     throw new Error("Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc NEXT_PUBLIC_SUPABASE_ANON_KEY.");
   }
-  installSupabaseRefreshErrorHandler();
+  installSupabaseNoiseSuppress();
   browserClient = createClient(url, anon, {
     auth: {
       autoRefreshToken: true,
