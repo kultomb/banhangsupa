@@ -8374,37 +8374,95 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="dashboard-trend-row dashboard-trend-row--1-1">
-                    <div class="dashboard-trend-panel">
-                        <h3 class="dashboard-trend-panel-title">🏆 Top 5 SP bán chạy (trong kỳ)</h3>
-                        <div class="dashboard-trend-top-products">
-                            ${
-                                topProducts.length
-                                    ? topProducts
-                                          .map((product, index) => {
-                                              const maxQuantity = topProducts[0][1] || 1;
-                                              const percentage = (product[1] / maxQuantity) * 100;
-                                              const colors = [
-                                                  '#10b981',
-                                                  '#3b82f6',
-                                                  '#f59e0b',
-                                                  '#8b5cf6',
-                                                  '#ef4444'
-                                              ];
-                                              return `
-                                    <div class="dashboard-trend-product-row">
-                                        <div class="dashboard-trend-product-meta">
-                                            <span>${escapeHtml(product[0])}</span>
-                                            <span>${product[1]}</span>
+                    <div class="wuxia-board-panel">
+                        <style>
+                            .wuxia-board-panel{background:linear-gradient(145deg,rgba(15,23,42,.97) 0%,rgba(17,24,39,.95) 50%,rgba(10,18,34,.97) 100%);border-radius:16px;border:1px solid rgba(250,204,21,.14);box-shadow:0 20px 56px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.04);padding:18px 16px 14px;position:relative;overflow:hidden;font-family:system-ui,sans-serif}
+                            .wuxia-board-panel *{box-sizing:border-box}
+                            .wuxia-board-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;position:relative;z-index:1}
+                            .wuxia-board-title{margin:0;font-size:14px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#FACC15;text-shadow:0 0 18px rgba(250,204,21,.55)}
+                            .wuxia-board-sub{font-size:10px;color:rgba(156,163,175,.6);letter-spacing:.04em;margin-top:3px}
+                            .wuxia-board-badge{font-size:9px;font-weight:700;letter-spacing:.09em;color:rgba(250,204,21,.65);border:1px solid rgba(250,204,21,.2);border-radius:5px;padding:3px 7px;background:rgba(250,204,21,.04);flex-shrink:0}
+                            .wuxia-divider{height:1px;background:linear-gradient(90deg,transparent 0%,rgba(250,204,21,.35) 30%,rgba(168,85,247,.2) 70%,transparent 100%);margin-bottom:12px}
+                            .wuxia-ambient-top{position:absolute;top:-40px;left:25%;right:25%;height:80px;background:radial-gradient(ellipse,rgba(250,204,21,.09) 0%,transparent 70%);pointer-events:none;animation:wuxiaAmbient 4s ease-in-out infinite}
+                            .wuxia-ambient-bot{position:absolute;bottom:-20px;left:20%;right:20%;height:55px;background:radial-gradient(ellipse,rgba(59,130,246,.07) 0%,transparent 70%);pointer-events:none}
+                            .wuxia-row{position:relative;padding:10px 12px;border-radius:11px;border:1px solid rgba(255,255,255,.07);margin-bottom:6px;overflow:hidden;transition:border-color .22s,box-shadow .22s,background .22s}
+                            .wuxia-row:hover{border-color:var(--wr-color);box-shadow:0 0 22px var(--wr-glow)}
+                            .wuxia-row-inner{display:flex;align-items:center;gap:9px;margin-bottom:7px;position:relative;z-index:1}
+                            .wuxia-rank{flex-shrink:0;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--wr-color);background:radial-gradient(circle,var(--wr-glow) 0%,transparent 70%);box-shadow:0 0 10px var(--wr-glow);font-size:12px;font-weight:800;color:var(--wr-color)}
+                            .wuxia-name{flex:1;min-width:0}
+                            .wuxia-name-text{font-size:11.5px;font-weight:700;letter-spacing:.045em;color:var(--wr-color);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+                            .wuxia-name-title{font-size:9.5px;color:rgba(156,163,175,.6);letter-spacing:.06em}
+                            .wuxia-sold{flex-shrink:0;font-weight:800;color:var(--wr-color);text-shadow:0 0 10px var(--wr-glow);font-variant-numeric:tabular-nums;line-height:1}
+                            .wuxia-sold--1{font-size:21px}
+                            .wuxia-sold--2,.wuxia-sold--3{font-size:18px}
+                            .wuxia-sold--n{font-size:15px}
+                            .wuxia-track{position:relative;height:8px;border-radius:99px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);overflow:hidden}
+                            .wuxia-fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,var(--wr-gf),var(--wr-gt));box-shadow:0 0 10px var(--wr-glow);overflow:hidden;transition:width 1.3s cubic-bezier(.22,1,.36,1)}
+                            .wuxia-shine{position:absolute;top:0;left:-70%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.38),transparent);animation:wuxiaShine 2.6s linear infinite;border-radius:99px}
+                            .wuxia-beast{position:absolute;inset:0;pointer-events:none}
+                            .wuxia-beast--dragon{animation:wuxiaDragon 6s ease-in-out infinite}
+                            .wuxia-beast--phoenix{animation:wuxiaPhoenix 5s ease-in-out infinite}
+                            .wuxia-beast--sword{animation:wuxiaSword 4s ease-in-out infinite}
+                            @keyframes wuxiaDragon{0%,100%{opacity:.12;transform:translateY(0) translateX(0)}33%{opacity:.18;transform:translateY(-3px) translateX(2px)}66%{opacity:.10;transform:translateY(2px) translateX(-1px)}}
+                            @keyframes wuxiaPhoenix{0%,100%{opacity:.12}50%{opacity:.19;filter:brightness(1.15)}}
+                            @keyframes wuxiaSword{0%,100%{opacity:.13}50%{opacity:.22;filter:brightness(1.2)}}
+                            @keyframes wuxiaShine{0%{left:-70%}100%{left:130%}}
+                            @keyframes wuxiaAmbient{0%,100%{opacity:.5}50%{opacity:.85}}
+                            .wuxia-empty{text-align:center;padding:24px 0;color:rgba(156,163,175,.4);font-size:13px}
+                        </style>
+                        <div class="wuxia-ambient-top" aria-hidden="true"></div>
+                        <div class="wuxia-board-hd">
+                            <div>
+                                <div style="display:flex;align-items:center;gap:7px">
+                                    <span style="font-size:15px">🏆</span>
+                                    <h3 class="wuxia-board-title">Bảng Phong Thần</h3>
+                                    <span style="font-size:15px">⚔️</span>
+                                </div>
+                                <div class="wuxia-board-sub">Top 5 sản phẩm bán chạy (trong kỳ)</div>
+                            </div>
+                            <div class="wuxia-board-badge">BẢNG XẾP HẠNG</div>
+                        </div>
+                        <div class="wuxia-divider" aria-hidden="true"></div>
+                        ${
+                            topProducts.length
+                                ? (() => {
+                                      const maxQ = topProducts[0][1] || 1;
+                                      const rankDefs = [
+                                          { title:'Thiên Phẩm', color:'#FACC15', glow:'rgba(250,204,21,.45)', gf:'#FACC15', gt:'#F59E0B', badge:'👑', beast:'dragon' },
+                                          { title:'Thần Phẩm',  color:'#F87171', glow:'rgba(168,85,247,.45)', gf:'#EF4444', gt:'#A855F7', badge:'⚔️',  beast:'phoenix' },
+                                          { title:'Huyền Phẩm', color:'#60A5FA', glow:'rgba(59,130,246,.45)', gf:'#3B82F6', gt:'#06B6D4', badge:'⚡',  beast:'sword' },
+                                          { title:'Ngọc Phẩm',  color:'#4ADE80', glow:'rgba(34,197,94,.35)',  gf:'#22C55E', gt:'#10B981', badge:'💎',  beast:'' },
+                                          { title:'Ngọc Phẩm',  color:'#4ADE80', glow:'rgba(34,197,94,.35)',  gf:'#22C55E', gt:'#10B981', badge:'💎',  beast:'' },
+                                      ];
+                                      const steelDef = { title:'Thép Phẩm', color:'#9CA3AF', glow:'rgba(156,163,175,.2)', gf:'#9CA3AF', gt:'#6B7280', badge:'', beast:'' };
+                                      return topProducts.map((product, index) => {
+                                          const rank = index + 1;
+                                          const def = rankDefs[index] || steelDef;
+                                          const pct = (product[1] / maxQ) * 100;
+                                          const soldClass = rank === 1 ? 'wuxia-sold--1' : rank <= 3 ? 'wuxia-sold--2' : 'wuxia-sold--n';
+                                          const dragonSvg = def.beast === 'dragon' ? `<svg viewBox="0 0 160 56" fill="none" style="position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:130px;height:46px" aria-hidden="true"><path d="M148 28 C128 10 96 8 68 20 C48 28 28 34 12 28" stroke="#FACC15" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/><path d="M88 20 L72 2 L104 18" stroke="#FACC15" stroke-width="1.8" fill="rgba(250,204,21,.12)" stroke-linejoin="round"/><path d="M88 22 L72 40 L104 24" stroke="#FACC15" stroke-width="1.8" fill="rgba(250,204,21,.10)" stroke-linejoin="round"/><ellipse cx="148" cy="28" rx="8" ry="6" fill="rgba(250,204,21,.18)" stroke="#FACC15" stroke-width="1.5"/><circle cx="151" cy="26" r="2" fill="#FACC15"/><path d="M147 22 L144 16" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><path d="M151 22 L154 16" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><path d="M12 28 C4 24 2 16 6 10" stroke="#FACC15" stroke-width="2" stroke-linecap="round" opacity="0.6"/><path d="M60 22 L64 16 L68 22" stroke="#FACC15" stroke-width="1" opacity="0.45"/><path d="M76 19 L80 13 L84 19" stroke="#FACC15" stroke-width="1" opacity="0.35"/></svg>` : '';
+                                          const phoenixSvg = def.beast === 'phoenix' ? `<svg viewBox="0 0 160 60" fill="none" style="position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:130px;height:48px" aria-hidden="true"><path d="M80 30 C60 12 30 15 16 28" stroke="#EF4444" stroke-width="2.2" fill="rgba(239,68,68,.08)" stroke-linecap="round"/><path d="M80 34 C56 48 24 44 16 28" stroke="#A855F7" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M80 30 C100 12 130 15 144 28" stroke="#EF4444" stroke-width="2.2" fill="rgba(239,68,68,.08)" stroke-linecap="round"/><path d="M80 34 C104 48 136 44 144 28" stroke="#A855F7" stroke-width="1.5" fill="none" stroke-linecap="round"/><ellipse cx="80" cy="32" rx="12" ry="8" fill="rgba(239,68,68,.15)" stroke="#EF4444" stroke-width="1.5"/><circle cx="80" cy="22" r="6" fill="rgba(239,68,68,.18)" stroke="#EF4444" stroke-width="1.5"/><path d="M80 16 L78 8 M80 16 L83 8 M80 16 L80 6" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><circle cx="82" cy="21" r="1.5" fill="#FACC15"/><path d="M74 38 L65 54 M80 40 L80 56 M86 38 L95 54" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/></svg>` : '';
+                                          const swordSvg = def.beast === 'sword' ? `<svg viewBox="0 0 160 60" fill="none" style="position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:120px;height:45px" aria-hidden="true"><defs><linearGradient id="wsg${index}" x1="148" y1="6" x2="24" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.35" stop-color="#60A5FA"/><stop offset="1" stop-color="#1D4ED8" stop-opacity="0.3"/></linearGradient></defs><path d="M148 6 L24 54" stroke="url(#wsg${index})" stroke-width="3" stroke-linecap="round"/><path d="M74 37 L54 28 M74 37 L54 46" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round"/><rect x="48" y="44" width="14" height="7" rx="2.5" fill="rgba(59,130,246,.25)" stroke="#60A5FA" stroke-width="1.2"/><path d="M130 12 C136 20 138 26 134 32" stroke="#06B6D4" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/><path d="M116 18 C122 26 124 32 120 38" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/><circle cx="148" cy="6" r="4" fill="rgba(255,255,255,.3)"/><circle cx="148" cy="6" r="2" fill="white" opacity="0.8"/></svg>` : '';
+                                          return `
+                                    <div class="wuxia-row" style="--wr-color:${def.color};--wr-glow:${def.glow};--wr-gf:${def.gf};--wr-gt:${def.gt}">
+                                        ${def.beast ? `<div class="wuxia-beast wuxia-beast--${def.beast}">${dragonSvg}${phoenixSvg}${swordSvg}</div>` : ''}
+                                        <div class="wuxia-row-inner">
+                                            <div class="wuxia-rank">${rank}</div>
+                                            <div class="wuxia-name">
+                                                <span class="wuxia-name-text">${escapeHtml(product[0])}${def.badge ? ' ' + def.badge : ''}</span>
+                                                <span class="wuxia-name-title">${def.title}</span>
+                                            </div>
+                                            <div class="wuxia-sold ${soldClass}">${product[1].toLocaleString('vi-VN')}</div>
                                         </div>
-                                        <div class="dashboard-trend-product-track">
-                                            <div class="dashboard-trend-product-fill" style="background:${colors[index]};width:${percentage}%;"></div>
+                                        <div class="wuxia-track">
+                                            <div class="wuxia-fill" style="width:${pct.toFixed(1)}%"><div class="wuxia-shine"></div></div>
                                         </div>
                                     </div>`;
-                                          })
-                                          .join('')
-                                    : '<p class="dashboard-trend-empty">Chưa có đơn chốt trong kỳ.</p>'
-                            }
-                        </div>
+                                      }).join('');
+                                  })()
+                                : '<p class="wuxia-empty">Chưa có đơn chốt trong kỳ.</p>'
+                        }
+                        <div class="wuxia-ambient-bot" aria-hidden="true"></div>
                     </div>
                     <div class="dashboard-trend-panel">
                         <h3 class="dashboard-trend-panel-title">📦 Tồn kho hiện tại</h3>
