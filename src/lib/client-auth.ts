@@ -92,12 +92,13 @@ export async function postSessionCookieWithRetries(
   const body = JSON.stringify(
     shop ? { idToken: trimmed, shopSlug: shop } : { idToken: trimmed },
   );
-  const maxAttempts = 3;
-  const baseMs = 100;
+  const maxAttempts = 4;
+  const baseMs = 300;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const ctrl = new AbortController();
-      const timer = window.setTimeout(() => ctrl.abort(), 20000);
+      // 6s timeout/lần — đủ cho cold start, nhưng không treo UI 20s+ khi server chậm.
+      const timer = window.setTimeout(() => ctrl.abort(), 6000);
       try {
         const res = await fetch("/api/auth/session", {
           method: "POST",

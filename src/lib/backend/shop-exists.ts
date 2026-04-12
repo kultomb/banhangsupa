@@ -33,8 +33,9 @@ export async function rtdbShopSlugExists(rawSlug: string): Promise<boolean> {
     }
     return ok;
   } catch (e) {
-    // Fail-closed: lỗi DB/mạng → không render POS shell cho slug không xác định.
-    console.error("[rtdbShopSlugExists] error verifying slug, denying access:", slug, e);
-    return false;
+    // Lỗi DB/mạng tạm thời → fail-open để tránh 404 oan cho shop hợp lệ.
+    // Bảo mật thực sự nằm ở RequireAuth (client) + /api/rtdb (server enforce shop ownership).
+    console.error("[rtdbShopSlugExists] DB error, failing open to avoid false 404:", slug, e);
+    return true;
   }
 }

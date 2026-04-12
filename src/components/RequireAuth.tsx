@@ -307,6 +307,19 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     return () => window.clearInterval(id);
   }, [ready, authed, sessionBridgeFailed]);
 
+  // Auto-retry khi sessionBridgeFailed — thường do mạng chập hoặc server cold start.
+  useEffect(() => {
+    if (!sessionBridgeFailed) return;
+    const id = window.setTimeout(() => {
+      setSessionBridgeFailed(false);
+      setReady(false);
+      setAuthed(false);
+      setResolvedShopSlug(null);
+      setBridgeRetryNonce((n) => n + 1);
+    }, 4000);
+    return () => window.clearTimeout(id);
+  }, [sessionBridgeFailed]);
+
   // Multi-device notification via Supabase Realtime Presence
   const showNewDeviceToast = useCallback(() => setNewDeviceToast(true), []);
   useEffect(() => {
@@ -428,11 +441,10 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
             }}
           >
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>
-              Chưa thiết lập phiên đồng bộ
+              Kết nối không ổn định
             </h1>
             <p style={{ fontSize: 15, lineHeight: 1.6, color: "#475569", margin: "0 0 18px" }}>
-              Đã xác thực tài khoản nhưng chưa thiết lập cookie phiên cho <code style={{ fontSize: 13 }}>/api/rtdb</code>. Thử{" "}
-              <strong>Tải lại trang</strong>, tab thường, bật cookie cho domain chuẩn (www hoặc non-www như cấu hình).
+              Đã xác thực tài khoản nhưng không đồng bộ được phiên làm việc — thường do mạng chậm hoặc server đang khởi động. Nhấn <strong>Thử lại</strong> hoặc <strong>Tải lại trang</strong>.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
               <button
