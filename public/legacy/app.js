@@ -8308,8 +8308,7 @@ class HamobileBanhang {
                             <p class="dashboard-trend-subtitle">${range.label} · ${range.from} → ${range.to}</p>
                         </div>
                         <div class="dashboard-trend-period-wrap">
-                            <div class="trp-seg" role="group" aria-label="Chọn kỳ báo cáo">${periodSegHtml}</div>
-                            <select id="dashboard-trend-period" class="dashboard-trend-period-select trp-select-hidden" onchange="app.setDashboardTrendPeriod(this.value)" aria-hidden="true">${periodSelectHtml}</select>
+                            <select id="dashboard-trend-period" class="dashboard-trend-period-select" onchange="app.setDashboardTrendPeriod(this.value)" aria-label="Chọn kỳ báo cáo">${periodSelectHtml}</select>
                         </div>
                     </div>
                 </div>

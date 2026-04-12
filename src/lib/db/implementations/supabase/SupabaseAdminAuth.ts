@@ -46,7 +46,8 @@ export class SupabaseAdminAuth implements IAdminAuthService {
     const perPage = Math.min(Math.max(1, maxResults), 1000);
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error) {
-      return { users: [] };
+      // Throw để caller nhận lỗi thật — không trả danh sách rỗng giả mạo khi DB/network lỗi.
+      throw new Error(`[SupabaseAdminAuth] listUsers failed: ${error.message}`);
     }
     const next =
       data.nextPage != null && data.nextPage <= data.lastPage ? String(data.nextPage) : undefined;

@@ -33,7 +33,8 @@ export async function rtdbShopSlugExists(rawSlug: string): Promise<boolean> {
     }
     return ok;
   } catch (e) {
-    console.error("[rtdbShopSlugExists]", slug, e);
-    return true;
+    // Fail-closed: lỗi DB/mạng → không render POS shell cho slug không xác định.
+    console.error("[rtdbShopSlugExists] error verifying slug, denying access:", slug, e);
+    return false;
   }
 }

@@ -59,13 +59,32 @@ function getAuthErrorMessage(err: unknown): string {
   }
 
   const lower = raw.toLowerCase();
-  if (lower.includes("invalid login credentials") || lower.includes("invalid_credentials")) {
+  if (
+    lower.includes("invalid login credentials") ||
+    lower.includes("invalid_credentials") ||
+    lower.includes("invalid email or password")
+  ) {
     return "Email hoặc mật khẩu không đúng.";
   }
-  if (lower.includes("email rate limit") || lower.includes("too many requests")) {
-    return "Bạn thử sai quá nhiều lần. Vui lòng đợi một lúc rồi thử lại.";
+  if (lower.includes("email not confirmed")) {
+    return "Email chưa được xác nhận. Vui lòng kiểm tra hộp thư và xác nhận email.";
   }
-  return "Đăng nhập thất bại. Vui lòng thử lại.";
+  if (lower.includes("no-access-token") || lower.includes("no_access_token")) {
+    return "Phiên đăng nhập đã hết hạn. Vui lòng thử lại.";
+  }
+  if (
+    lower.includes("email rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("request this after") ||
+    lower.includes("over_email_send_rate_limit") ||
+    lower.includes("for security purposes")
+  ) {
+    return "Bạn thử quá nhiều lần. Vui lòng đợi một lúc rồi thử lại.";
+  }
+  if (lower.includes("network") || (lower.includes("fetch") && lower.includes("fail"))) {
+    return "Lỗi kết nối mạng. Vui lòng kiểm tra Internet và thử lại.";
+  }
+  return `Đăng nhập thất bại. Vui lòng thử lại.${process.env.NODE_ENV !== "production" ? ` (${raw.slice(0, 80)})` : ""}`;
 }
 
 function resetTurnstile(ref: RefObject<LoginTurnstileHandle | null>) {

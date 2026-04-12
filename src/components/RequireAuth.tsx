@@ -2,7 +2,8 @@
 
 import { getAuthClient } from "@/lib/db";
 import type { AuthSessionUser } from "@/lib/db/types";
-import { ReactNode, useEffect, useState } from "react";
+import type { UserProfileClient } from "@/lib/user-profile-client";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   forceLogoutMissingShop,
@@ -13,6 +14,46 @@ import {
 } from "@/lib/client-auth";
 import { PRESENCE_HEARTBEAT_MS } from "@/lib/presence-config";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
+
+// ---------------------------------------------------------------------------
+// Profile cache — tránh gọi Supabase lại trên mỗi F5 / token refresh
+// TTL 5 phút; backup vào sessionStorage để sống qua F5.
+// ---------------------------------------------------------------------------
+const PROFILE_CACHE_KEY = "ha_pcache";
+const PROFILE_CACHE_TTL = 5 * 60 * 1000;
+
+type ProfileCacheEntry = { uid: string; profile: UserProfileClient; cachedAt: number };
+let _memProfileCache: ProfileCacheEntry | null = null;
+
+function getProfileCache(uid: string): UserProfileClient | null {
+  const check = (e: ProfileCacheEntry | null) =>
+    e && e.uid === uid && Date.now() - e.cachedAt < PROFILE_CACHE_TTL ? e.profile : null;
+  if (_memProfileCache) {
+    const hit = check(_memProfileCache);
+    if (hit) return hit;
+  }
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as ProfileCacheEntry;
+      const hit = check(parsed);
+      if (hit) { _memProfileCache = parsed; return hit; }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function setProfileCache(uid: string, profile: UserProfileClient) {
+  const entry: ProfileCacheEntry = { uid, profile, cachedAt: Date.now() };
+  _memProfileCache = entry;
+  try { sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(entry)); } catch { /* ignore */ }
+}
+
+function clearProfileCache() {
+  _memProfileCache = null;
+  try { sessionStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
 
 function toPaymentRequiredPath(shopSlug?: string) {
   const shop = String(shopSlug || "").trim();
@@ -22,7 +63,7 @@ function toPaymentRequiredPath(shopSlug?: string) {
 type RequireAuthProps = {
   children?: ReactNode;
   /**
-   * Route /[shop]: render với `shopSlug` từ hồ sơ Firebase — không dùng segment URL (tránh hiển thị slug rác
+   * Route /[shop]: render với `shopSlug` từ hồ sơ người dùng — không dùng segment URL (tránh hiển thị slug rác
    * trong khi `/api/rtdb` vẫn map đúng kho).
    */
   renderShop?: (ctx: { shopSlug: string }) => ReactNode;
@@ -62,6 +103,8 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
   const [resolvedShopSlug, setResolvedShopSlug] = useState<string | null>(null);
   const [sessionBridgeFailed, setSessionBridgeFailed] = useState(false);
   const [bridgeRetryNonce, setBridgeRetryNonce] = useState(0);
+  const [newDeviceToast, setNewDeviceToast] = useState(false);
+  const authedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -112,10 +155,15 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     };
 
     const resolveProfileWithRetry = async (uid: string) => {
+      // Dùng cache trước — tránh round-trip Supabase trên mỗi F5 / token refresh
+      const cached = getProfileCache(uid);
+      if (cached) return cached;
       const first = await fetchUserProfileClient(uid);
-      if (hasValidShopSlug(first.shopSlug)) return first;
+      if (hasValidShopSlug(first.shopSlug)) { setProfileCache(uid, first); return first; }
       await new Promise((r) => setTimeout(r, 450));
-      return fetchUserProfileClient(uid);
+      const second = await fetchUserProfileClient(uid);
+      if (hasValidShopSlug(second.shopSlug)) setProfileCache(uid, second);
+      return second;
     };
 
     const processSignedInUser = async (user: AuthSessionUser) => {
@@ -149,6 +197,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
           if (disposed) return;
           setSessionBridgeFailed(true);
           setResolvedShopSlug(shopSlug);
+          authedUidRef.current = user.uid;
           setAuthed(true);
           setReady(true);
           return;
@@ -169,6 +218,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         }
 
         if (disposed) return;
+        authedUidRef.current = user.uid;
         setResolvedShopSlug(shopSlug);
         setAuthed(true);
         setReady(true);
@@ -187,7 +237,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       await authClient.authStateReady();
       if (disposed) return;
 
-      /** Trang chỉ bọc children (vd. /upgrade, /account): đã đăng nhập Firebase thì hiện UI ngay; đồng bộ cookie / RTDB chạy nền. */
+      /** Trang chỉ bọc children (vd. /upgrade, /account): đã đăng nhập thì hiện UI ngay; đồng bộ cookie / RTDB chạy nền. */
       const simpleClientGate = !renderShop && pathShopFromUrl === undefined;
       const bootUser = authClient.getCurrentUser();
 
@@ -199,17 +249,18 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         }
 
         if (!user) {
-          // Tránh đăng xuất nhầm khi Firebase tạm trả null (refresh token / tab ngủ / mạng chập).
+          // Tránh đăng xuất nhầm khi Supabase tạm trả null (refresh token / tab ngủ / mạng chập).
           logoutDebounce = window.setTimeout(() => {
             logoutDebounce = undefined;
             if (disposed) return;
             if (getAuthClient().getCurrentUser()) return;
+            clearProfileCache();
             setSessionBridgeFailed(false);
             setAuthed(false);
             setReady(true);
             void clearServerSession();
             redirectToLogin();
-          }, 2500);
+          }, 800);
           return;
         }
 
@@ -236,7 +287,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         return;
       }
       void processSignedInUser(user);
-    }, 1800);
+    }, 600);
 
     return () => {
       disposed = true;
@@ -249,12 +300,58 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
   useEffect(() => {
     if (!ready || !authed || sessionBridgeFailed) return;
     const ping = () => {
-      void fetch("/api/auth/presence", { method: "POST", credentials: "include" });
+      void fetch("/api/auth/presence", { method: "POST", credentials: "include" }).catch(() => undefined);
     };
     ping();
     const id = window.setInterval(ping, PRESENCE_HEARTBEAT_MS);
     return () => window.clearInterval(id);
   }, [ready, authed, sessionBridgeFailed]);
+
+  // Multi-device notification via Supabase Realtime Presence
+  const showNewDeviceToast = useCallback(() => setNewDeviceToast(true), []);
+  useEffect(() => {
+    if (!ready || !authed) return;
+    const uid = authedUidRef.current;
+    if (!uid) return;
+    let sb: ReturnType<typeof getSupabaseBrowserClient> | null = null;
+    try { sb = getSupabaseBrowserClient(); } catch { return; }
+    const myJoinedAt = Date.now();
+    let deviceId: string;
+    try {
+      deviceId = sessionStorage.getItem("ha_device_id") ?? "";
+      if (!deviceId) {
+        deviceId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        sessionStorage.setItem("ha_device_id", deviceId);
+      }
+    } catch { deviceId = Math.random().toString(36).slice(2); }
+
+    const channel = sb.channel(`da-presence-${uid}`, { config: { presence: { key: deviceId } } });
+    channel.on("presence", { event: "join" }, ({ newPresences }) => {
+      for (const p of newPresences as Array<{ deviceId?: string; joinedAt?: number }>) {
+        // Thiết bị mới đăng nhập sau khi chúng ta đã vào ít nhất 4 giây
+        if (p.deviceId && p.deviceId !== deviceId && typeof p.joinedAt === "number" && p.joinedAt > myJoinedAt + 4000) {
+          showNewDeviceToast();
+          break;
+        }
+      }
+    });
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ deviceId, joinedAt: myJoinedAt });
+      }
+    });
+    return () => {
+      void channel.untrack().catch(() => undefined);
+      void sb!.removeChannel(channel).catch(() => undefined);
+    };
+  }, [ready, authed, showNewDeviceToast]);
+
+  // Auto-dismiss toast sau 8 giây
+  useEffect(() => {
+    if (!newDeviceToast) return;
+    const id = window.setTimeout(() => setNewDeviceToast(false), 8000);
+    return () => window.clearTimeout(id);
+  }, [newDeviceToast]);
 
   if (!ready) {
     return (
@@ -334,7 +431,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
               Chưa thiết lập phiên đồng bộ
             </h1>
             <p style={{ fontSize: 15, lineHeight: 1.6, color: "#475569", margin: "0 0 18px" }}>
-              Đăng nhập Firebase đã OK; cần thêm cookie phiên cho <code style={{ fontSize: 13 }}>/api/rtdb</code>. Thử{" "}
+              Đã xác thực tài khoản nhưng chưa thiết lập cookie phiên cho <code style={{ fontSize: 13 }}>/api/rtdb</code>. Thử{" "}
               <strong>Tải lại trang</strong>, tab thường, bật cookie cho domain chuẩn (www hoặc non-www như cấu hình).
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -382,7 +479,70 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         </div>
       );
     }
-    return <>{renderShop({ shopSlug: resolvedShopSlug })}</>;
+    return (
+      <>
+        {newDeviceToast && <NewDeviceToast onClose={() => setNewDeviceToast(false)} />}
+        {renderShop({ shopSlug: resolvedShopSlug })}
+      </>
+    );
   }
-  return <>{children}</>;
+  return (
+    <>
+      {newDeviceToast && <NewDeviceToast onClose={() => setNewDeviceToast(false)} />}
+      {children}
+    </>
+  );
+}
+
+function NewDeviceToast({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      role="alert"
+      style={{
+        position: "fixed",
+        bottom: 24,
+        right: 24,
+        zIndex: 99999,
+        maxWidth: 340,
+        background: "#1e293b",
+        color: "#f1f5f9",
+        borderRadius: 14,
+        padding: "14px 18px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        fontFamily: "system-ui, sans-serif",
+        fontSize: 14,
+        lineHeight: 1.5,
+        animation: "slideUpToast 0.3s ease",
+      }}
+    >
+      <span style={{ fontSize: 20, flexShrink: 0 }}>🔔</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, marginBottom: 2 }}>Đăng nhập trên thiết bị khác</div>
+        <div style={{ color: "#94a3b8", fontSize: 13 }}>
+          Tài khoản vừa được đăng nhập từ một thiết bị khác.
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="Đóng"
+        onClick={onClose}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#94a3b8",
+          cursor: "pointer",
+          fontSize: 18,
+          lineHeight: 1,
+          padding: 0,
+          flexShrink: 0,
+        }}
+      >
+        ×
+      </button>
+      <style>{`@keyframes slideUpToast { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
+    </div>
+  );
 }

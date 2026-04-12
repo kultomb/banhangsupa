@@ -5,13 +5,24 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 export class SupabaseUserProfileClient implements IUserProfileClientService {
   async fetchProfile(uid: string): Promise<UserProfileClient> {
     const sb = getSupabaseBrowserClient();
-    const { data, error } = await sb
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    // Bọc bằng Promise.race để hỗ trợ abort timeout (PostgrestBuilder không có .finally)
+    const query = sb
       .from("user_profiles")
       .select(
         "shop_slug, payment_status, registration_trial, shop_display_name, trial_expires_at, created_at, upgrade_target_slug, payment_ref",
       )
       .eq("id", uid)
+      .abortSignal(ctrl.signal)
       .maybeSingle();
+    let res: Awaited<typeof query>;
+    try {
+      res = await query;
+    } finally {
+      clearTimeout(timer);
+    }
+    const { data, error } = res!;
 
     if (error) throw error;
     if (!data) {

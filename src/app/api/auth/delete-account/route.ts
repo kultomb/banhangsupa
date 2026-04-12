@@ -23,8 +23,8 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
     console.error("[delete-account]", e);
-    return Response.json({ error: "server_error", message: msg }, { status: 500 });
+    // Không trả message nội bộ ra client (info leak).
+    return Response.json({ error: "server_error" }, { status: 500 });
   }
 }

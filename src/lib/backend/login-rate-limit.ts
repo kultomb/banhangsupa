@@ -22,8 +22,10 @@ function clientIpFromRequest(request: Request) {
 
 /**
  * Gọi trước mỗi lần submit đăng nhập. Vượt quá MAX_ATTEMPTS trong WINDOW_MS → chặn BLOCK_MS.
+ * Môi trường dev (NODE_ENV !== "production") bỏ qua hoàn toàn để không bị chặn khi test.
  */
 export async function recordLoginPrecheckAttempt(request: Request, email: string) {
+  if (process.env.NODE_ENV !== "production") return;
   const admin = createSupabaseAdminClient();
   const ip = clientIpFromRequest(request);
   const bucket = loginRateBucketId(ip, email);

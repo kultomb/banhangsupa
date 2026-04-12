@@ -35,7 +35,7 @@ export async function POST(request: Request) {
           { status: 429, headers: { "retry-after": String(retryAfterSec) } },
         );
       }
-      console.error("[login-precheck] rate_limit_firestore", e);
+      console.error("[login-precheck] rate_limit_db_error", e);
       const ignoreRateLimitBackend =
         process.env.NODE_ENV !== "production" ||
         process.env.LOGIN_PRECHECK_IGNORE_RATE_LIMIT_ERROR === "1";

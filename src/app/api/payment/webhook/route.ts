@@ -1,7 +1,24 @@
+import { timingSafeEqual } from "node:crypto";
 import { parseIncomingTransferAmount } from "@/lib/payment-incoming-amount";
 import { PaymentWebhookProcessingError } from "@/lib/supabase/payment-webhook-errors";
 import { handlePaymentWebhookPostgres } from "@/lib/supabase/payment-webhook-pg";
 import { paymentWebhookBodySchema } from "@/lib/validation/payment-webhook";
+
+/** So sánh string chống timing attack. */
+function safeEqual(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a);
+    const bb = Buffer.from(b);
+    if (ba.length !== bb.length) {
+      // Vẫn chạy timingSafeEqual để tránh branch-timing, pad bằng cách so sánh giả.
+      timingSafeEqual(ba, ba);
+      return false;
+    }
+    return timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,8 +84,8 @@ function webhookSecretOk(request: Request) {
 
   const gotHeader = request.headers.get("x-webhook-secret") || "";
 
-  if (gotApiKey && expectedApiKeys.includes(gotApiKey)) return true;
-  if (expectedSecret && gotHeader === expectedSecret) return true;
+  if (gotApiKey && expectedApiKeys.some((k) => safeEqual(k, gotApiKey))) return true;
+  if (expectedSecret && safeEqual(expectedSecret, gotHeader)) return true;
   return false;
 }
 
@@ -98,10 +115,12 @@ export async function POST(request: Request) {
     const rawJson = await request.json().catch(() => null);
     const parsed = paymentWebhookBodySchema.safeParse(rawJson);
     if (!parsed.success) {
-      return Response.json(
-        { success: false, reason: "invalid_body", issues: parsed.error.flatten() },
-        { status: 400 },
-      );
+      // Không expose validation schema ra ngoài trên production.
+      const body =
+        process.env.NODE_ENV === "production"
+          ? { success: false, reason: "invalid_body" }
+          : { success: false, reason: "invalid_body", issues: parsed.error.flatten() };
+      return Response.json(body, { status: 400 });
     }
     const payload = parsed.data;
 
