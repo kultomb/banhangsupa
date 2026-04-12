@@ -29,6 +29,27 @@ async function withRetry<T extends { error: unknown }>(fn: () => PromiseLike<T>)
 
 export type PosBackupTable = "pos_backups" | "trial_pos_backups";
 
+/**
+ * Module-level row ID cache.
+ * Vercel reuses warm containers for ~1-5 min — skipping the SELECT query saves ~100-200ms per request.
+ * Key: `${table}::${shopKey}`, value: { id, cachedAt }.
+ */
+const _rowIdCache = new Map<string, { id: string; cachedAt: number }>();
+const ROW_CACHE_TTL_MS = 60_000; // 1 min
+
+function getCachedId(table: PosBackupTable, shopKey: string): string | null {
+  const c = _rowIdCache.get(`${table}::${shopKey}`);
+  return c && Date.now() - c.cachedAt < ROW_CACHE_TTL_MS ? c.id : null;
+}
+
+function setCachedId(table: PosBackupTable, shopKey: string, id: string) {
+  _rowIdCache.set(`${table}::${shopKey}`, { id, cachedAt: Date.now() });
+}
+
+function clearCachedId(table: PosBackupTable, shopKey: string) {
+  _rowIdCache.delete(`${table}::${shopKey}`);
+}
+
 function getDeep(obj: unknown, path: string[]): unknown {
   let x: unknown = obj;
   for (const p of path) {
@@ -99,7 +120,16 @@ function stripDemoSeedFlagFromPayload(value: unknown): unknown {
 }
 
 async function getLatestRow(admin: SupabaseClient, table: PosBackupTable, shopKey: string) {
-  // Dùng withRetry để chịu được lỗi mạng thoáng qua — tránh 500 vô lý cho client
+  // Fast path: if we have a cached row ID (warm container), use PK lookup (O(1) vs index scan)
+  const cachedId = getCachedId(table, shopKey);
+  if (cachedId) {
+    const fast = await withRetry(() =>
+      admin.from(table).select("id, data").eq("id", cachedId).maybeSingle(),
+    );
+    if (!fast.error && fast.data) return fast.data as { id: string; data: Record<string, unknown> };
+    clearCachedId(table, shopKey); // stale or deleted — fall through
+  }
+
   const res = await withRetry(() =>
     admin
       .from(table)
@@ -110,6 +140,7 @@ async function getLatestRow(admin: SupabaseClient, table: PosBackupTable, shopKe
       .maybeSingle(),
   );
   if (res.error) throw res.error;
+  if (res.data) setCachedId(table, shopKey, (res.data as { id: string }).id);
   return res.data as { id: string; data: Record<string, unknown> } | null;
 }
 
@@ -135,7 +166,9 @@ async function ensureBackupRow(
     if (fallback) return fallback;
     throw res.error;
   }
-  return res.data as { id: string; data: Record<string, unknown> };
+  const inserted = res.data as { id: string; data: Record<string, unknown> };
+  setCachedId(table, shopKey, inserted.id);
+  return inserted;
 }
 
 export async function liftLegacyTrialBackupToTrialBackupsPg(admin: SupabaseClient, shopKey: string) {
@@ -280,6 +313,7 @@ export async function proxyPosBackupPostgres(params: {
       if (error) {
         return jsonError(500, "write_failed", "Không ghi được CSDL.");
       }
+      setCachedId(table, allowedShopKey, row.id); // refresh cache TTL after successful write
 
       // Broadcast new version for real-time sync across devices (fire-and-forget, non-blocking)
       void admin.from("pos_version_log").upsert(

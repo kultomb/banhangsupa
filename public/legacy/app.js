@@ -669,6 +669,11 @@ window.FirebaseStorage = {
                     meta: retryMeta,
                 }, true);
             }
+            // Server 500 / network_error: retry 1 lần sau 2s (như Firebase silent retry)
+            if ((pSave.code === 'network_error' || pSave.code === 'unknown_error') && !_retried) {
+                await new Promise(function (r) { setTimeout(r, 2000); });
+                return this.save(payload, true);
+            }
             if (typeof handleAppError === 'function') {
                 handleAppError(pSave.code, {
                     phase: 'save',
@@ -680,6 +685,11 @@ window.FirebaseStorage = {
             }
             return false;
         } catch (e) {
+            // Exception-level error (timeout, fetch abort): retry 1 lần trước khi hiện lỗi
+            if (!_retried) {
+                await new Promise(function (r) { setTimeout(r, 2000); });
+                return this.save(payload, true);
+            }
             if (typeof handleAppError === 'function') {
                 handleAppError('network_error', { phase: 'save', cause: e && e.message ? e.message : String(e) }, { ui: 'toast' });
             }
