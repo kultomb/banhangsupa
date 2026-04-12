@@ -8499,7 +8499,6 @@ class HamobileBanhang {
                                 <div style="display:flex;align-items:center;gap:7px">
                                     <span style="font-size:15px">👥</span>
                                     <h3 class="wuxia-board-title">Hiệp Khách Bảng</h3>
-                                    <span style="font-size:15px">💰</span>
                                 </div>
                                 <div class="wuxia-board-sub">Top 5 khách hàng chi nhiều nhất (trong kỳ)</div>
                             </div>
