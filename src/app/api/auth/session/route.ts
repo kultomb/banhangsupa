@@ -34,9 +34,11 @@ export async function POST(request: Request) {
       void resetLoginRateForEmail(request, email);
     }
 
-    const profileShopSlug = await getUserShopServerService().resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));
-    const shopSlug = profileShopSlug || requestShopSlug;
+    // Ưu tiên shopSlug từ client (đã xác thực profile phía client) — bỏ DB query thừa.
+    // Chỉ query DB khi client không cung cấp slug (backward compat / first login).
+    const shopSlug = requestShopSlug
+      || await getUserShopServerService().resolveUserShopSlugWithHeal(decoded.uid);
 
     /** Chỉ Secure khi thực sự HTTPS. */
     const forwarded = (request.headers.get("x-forwarded-proto") || "")

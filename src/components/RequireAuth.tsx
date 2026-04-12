@@ -188,22 +188,6 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
           return;
         }
 
-        setSessionBridgeFailed(false);
-        let cookieOk = await syncIdTokenToCookie(shopSlug);
-        if (!cookieOk) {
-          await new Promise((r) => setTimeout(r, 500));
-          cookieOk = await syncIdTokenToCookie(shopSlug);
-        }
-        if (!cookieOk) {
-          if (disposed) return;
-          setSessionBridgeFailed(true);
-          setResolvedShopSlug(shopSlug);
-          authedUidRef.current = user.uid;
-          setAuthed(true);
-          setReady(true);
-          return;
-        }
-
         if (!paymentAllowsAppAccess(profile.paymentStatus, profile.registrationTrial)) {
           const target = toPaymentRequiredPath(shopSlug);
           try {
@@ -212,17 +196,32 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
               return;
             }
           } catch {
-            // Ignore cross-frame redirect issues.
+            // Ignore.
           }
           window.location.href = target;
           return;
         }
 
         if (disposed) return;
+        // Hiển thị UI ngay sau khi có profile — không chờ cookie sync.
+        // Cookie còn hợp lệ từ middleware nên iframe hoạt động bình thường.
+        setSessionBridgeFailed(false);
         authedUidRef.current = user.uid;
         setResolvedShopSlug(shopSlug);
         setAuthed(true);
         setReady(true);
+
+        // Cookie sync chạy ngầm — không block UI
+        void (async () => {
+          let ok = await syncIdTokenToCookie(shopSlug);
+          if (!ok) {
+            await new Promise((r) => setTimeout(r, 500));
+            ok = await syncIdTokenToCookie(shopSlug);
+          }
+          if (!ok && !disposed) {
+            setSessionBridgeFailed(true);
+          }
+        })();
       } catch {
         if (disposed) return;
         setAuthed(false);
