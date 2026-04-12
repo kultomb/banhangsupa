@@ -8271,6 +8271,19 @@ class HamobileBanhang {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
 
+        // Top 5 khách hàng chi nhiều nhất trong kỳ (bỏ qua "Khách lẻ")
+        const _custStats = {};
+        finalizedOrders.forEach((order) => {
+            const name = (order.customerName || '').trim();
+            if (!name || /^kh[aá]ch\s*l[eẻẽẹê]/i.test(name)) return;
+            if (!_custStats[name]) _custStats[name] = { name, total: 0, orders: 0 };
+            _custStats[name].total += Number(order.total) || 0;
+            _custStats[name].orders += 1;
+        });
+        const topCustomers = Object.values(_custStats)
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5);
+
         const lowStockProducts = products.filter((p) => p && Number(p.stock) < 10);
         const normalStockProducts = products.filter(
             (p) => p && Number(p.stock) >= 10 && Number(p.stock) < 50
@@ -8464,24 +8477,61 @@ class HamobileBanhang {
                         }
                         <div class="wuxia-ambient-bot" aria-hidden="true"></div>
                     </div>
-                    <div class="dashboard-trend-panel">
-                        <h3 class="dashboard-trend-panel-title">📦 Tồn kho hiện tại</h3>
-                        <div class="dashboard-trend-inventory-svg">
-                            <svg width="100" height="100" style="transform: rotate(-90deg);" aria-hidden="true">
-                                <circle cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" stroke-width="10"></circle>
-                                <circle cx="50" cy="50" r="40" fill="none" stroke="#dc2626" stroke-width="10"
-                                        stroke-dasharray="${((lowStockProducts.length / productCountSafe) * 251).toFixed(1)} 251"></circle>
-                                <circle cx="50" cy="50" r="30" fill="none" stroke="#f59e0b" stroke-width="8"
-                                        stroke-dasharray="${((normalStockProducts.length / productCountSafe) * 188).toFixed(1)} 188"></circle>
-                                <circle cx="50" cy="50" r="20" fill="none" stroke="#10b981" stroke-width="6"
-                                        stroke-dasharray="${((highStockProducts.length / productCountSafe) * 126).toFixed(1)} 126"></circle>
-                            </svg>
+                    <div class="wuxia-board-panel">
+                        <div class="wuxia-ambient-top" aria-hidden="true"></div>
+                        <div class="wuxia-board-hd">
+                            <div>
+                                <div style="display:flex;align-items:center;gap:7px">
+                                    <span style="font-size:15px">👥</span>
+                                    <h3 class="wuxia-board-title">Hiệp Khách Bảng</h3>
+                                    <span style="font-size:15px">💰</span>
+                                </div>
+                                <div class="wuxia-board-sub">Top 5 khách hàng chi nhiều nhất (trong kỳ)</div>
+                            </div>
+                            <div class="wuxia-board-badge">TRUNG THÀNH</div>
                         </div>
-                        <div class="dashboard-trend-inventory-legend">
-                            <div><span class="dashboard-trend-dot dashboard-trend-dot--red"></span>Sắp hết: ${lowStockProducts.length}</div>
-                            <div><span class="dashboard-trend-dot dashboard-trend-dot--amber"></span>Bình thường: ${normalStockProducts.length}</div>
-                            <div><span class="dashboard-trend-dot dashboard-trend-dot--green"></span>Dồi dào: ${highStockProducts.length}</div>
-                        </div>
+                        <div class="wuxia-divider" aria-hidden="true"></div>
+                        ${
+                            topCustomers.length
+                                ? (() => {
+                                      const maxTotal = topCustomers[0].total || 1;
+                                      const fmtMoney = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'tr' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : v.toLocaleString('vi-VN');
+                                      const rankDefs = [
+                                          { title:'Đại Hiệp', color:'#FACC15', glow:'rgba(250,204,21,.45)', gf:'#FACC15', gt:'#F59E0B', badge:'👑', beast:'dragon' },
+                                          { title:'Hiệp Sĩ', color:'#F87171', glow:'rgba(168,85,247,.45)', gf:'#EF4444', gt:'#A855F7', badge:'⚔️',  beast:'phoenix' },
+                                          { title:'Kiếm Khách', color:'#60A5FA', glow:'rgba(59,130,246,.45)', gf:'#3B82F6', gt:'#06B6D4', badge:'⚡',  beast:'sword' },
+                                          { title:'Nghĩa Khách', color:'#4ADE80', glow:'rgba(34,197,94,.35)',  gf:'#22C55E', gt:'#10B981', badge:'💎',  beast:'' },
+                                          { title:'Nghĩa Khách', color:'#4ADE80', glow:'rgba(34,197,94,.35)',  gf:'#22C55E', gt:'#10B981', badge:'💎',  beast:'' },
+                                      ];
+                                      const steelDef = { title:'Lãng Khách', color:'#9CA3AF', glow:'rgba(156,163,175,.2)', gf:'#9CA3AF', gt:'#6B7280', badge:'', beast:'' };
+                                      return topCustomers.map((cust, index) => {
+                                          const rank = index + 1;
+                                          const def = rankDefs[index] || steelDef;
+                                          const pct = (cust.total / maxTotal) * 100;
+                                          const soldClass = rank === 1 ? 'wuxia-sold--1' : rank <= 3 ? 'wuxia-sold--2' : 'wuxia-sold--n';
+                                          const dragonSvg = def.beast === 'dragon' ? `<svg viewBox="0 0 160 56" fill="none" style="position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:130px;height:46px" aria-hidden="true"><path d="M148 28 C128 10 96 8 68 20 C48 28 28 34 12 28" stroke="#FACC15" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/><path d="M88 20 L72 2 L104 18" stroke="#FACC15" stroke-width="1.8" fill="rgba(250,204,21,.12)" stroke-linejoin="round"/><path d="M88 22 L72 40 L104 24" stroke="#FACC15" stroke-width="1.8" fill="rgba(250,204,21,.10)" stroke-linejoin="round"/><ellipse cx="148" cy="28" rx="8" ry="6" fill="rgba(250,204,21,.18)" stroke="#FACC15" stroke-width="1.5"/><circle cx="151" cy="26" r="2" fill="#FACC15"/><path d="M147 22 L144 16" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><path d="M151 22 L154 16" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><path d="M12 28 C4 24 2 16 6 10" stroke="#FACC15" stroke-width="2" stroke-linecap="round" opacity="0.6"/><path d="M60 22 L64 16 L68 22" stroke="#FACC15" stroke-width="1" opacity="0.45"/></svg>` : '';
+                                          const phoenixSvg = def.beast === 'phoenix' ? `<svg viewBox="0 0 160 60" fill="none" style="position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:130px;height:48px" aria-hidden="true"><path d="M80 30 C60 12 30 15 16 28" stroke="#EF4444" stroke-width="2.2" fill="rgba(239,68,68,.08)" stroke-linecap="round"/><path d="M80 34 C56 48 24 44 16 28" stroke="#A855F7" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M80 30 C100 12 130 15 144 28" stroke="#EF4444" stroke-width="2.2" fill="rgba(239,68,68,.08)" stroke-linecap="round"/><path d="M80 34 C104 48 136 44 144 28" stroke="#A855F7" stroke-width="1.5" fill="none" stroke-linecap="round"/><ellipse cx="80" cy="32" rx="12" ry="8" fill="rgba(239,68,68,.15)" stroke="#EF4444" stroke-width="1.5"/><circle cx="80" cy="22" r="6" fill="rgba(239,68,68,.18)" stroke="#EF4444" stroke-width="1.5"/><path d="M80 16 L78 8 M80 16 L83 8" stroke="#FACC15" stroke-width="1.2" stroke-linecap="round"/><circle cx="82" cy="21" r="1.5" fill="#FACC15"/><path d="M74 38 L65 54 M80 40 L80 56 M86 38 L95 54" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/></svg>` : '';
+                                          const swordSvg = def.beast === 'sword' ? `<svg viewBox="0 0 160 60" fill="none" style="position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:120px;height:45px" aria-hidden="true"><defs><linearGradient id="wcg${index}" x1="148" y1="6" x2="24" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.35" stop-color="#60A5FA"/><stop offset="1" stop-color="#1D4ED8" stop-opacity="0.3"/></linearGradient></defs><path d="M148 6 L24 54" stroke="url(#wcg${index})" stroke-width="3" stroke-linecap="round"/><path d="M74 37 L54 28 M74 37 L54 46" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round"/><rect x="48" y="44" width="14" height="7" rx="2.5" fill="rgba(59,130,246,.25)" stroke="#60A5FA" stroke-width="1.2"/><path d="M130 12 C136 20 138 26 134 32" stroke="#06B6D4" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/><circle cx="148" cy="6" r="3" fill="rgba(255,255,255,.4)"/></svg>` : '';
+                                          return `
+                                    <div class="wuxia-row" style="--wr-color:${def.color};--wr-glow:${def.glow};--wr-gf:${def.gf};--wr-gt:${def.gt}">
+                                        ${def.beast ? `<div class="wuxia-beast wuxia-beast--${def.beast}">${dragonSvg}${phoenixSvg}${swordSvg}</div>` : ''}
+                                        <div class="wuxia-row-inner">
+                                            <div class="wuxia-rank">${rank}</div>
+                                            <div class="wuxia-name">
+                                                <span class="wuxia-name-text">${escapeHtml(cust.name)}${def.badge ? ' ' + def.badge : ''}</span>
+                                                <span class="wuxia-name-title">${def.title} · ${cust.orders} đơn</span>
+                                            </div>
+                                            <div class="wuxia-sold ${soldClass}">${fmtMoney(cust.total)}</div>
+                                        </div>
+                                        <div class="wuxia-track">
+                                            <div class="wuxia-fill" style="width:${pct.toFixed(1)}%"><div class="wuxia-shine"></div></div>
+                                        </div>
+                                    </div>`;
+                                      }).join('');
+                                  })()
+                                : '<p class="wuxia-empty">Chưa có khách hàng có tên trong kỳ.</p>'
+                        }
+                        <div class="wuxia-ambient-bot" aria-hidden="true"></div>
                     </div>
                 </div>
                 <div class="dashboard-trend-row dashboard-trend-row--3 dts-row">
