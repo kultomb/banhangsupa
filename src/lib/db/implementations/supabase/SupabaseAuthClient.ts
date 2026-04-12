@@ -75,7 +75,8 @@ export class SupabaseAuthClient implements IAuthClient {
     const { data } = this.sb.auth.onAuthStateChange((event, session) => {
       // TOKEN_REFRESH_FAILED: mạng tạm lỗi khi auto-refresh → KHÔNG reset snapshot,
       // KHÔNG gọi callback → tránh logout oan và tránh ảnh hưởng RequireAuth đang chạy.
-      if (event === "TOKEN_REFRESH_FAILED") return;
+      // Cast string vì event type của phiên bản này chưa khai báo TOKEN_REFRESH_FAILED.
+      if ((event as string) === "TOKEN_REFRESH_FAILED") return;
 
       this.setSnapshot(session);
       /** TOKEN_REFRESHED: tránh login page chạy lại pipeline restore → kẹt spinner. */
