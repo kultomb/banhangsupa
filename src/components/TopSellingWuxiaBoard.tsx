@@ -556,7 +556,6 @@ export default function TopSellingWuxiaBoard({
                 marginBottom: 3,
               }}
             >
-              <span style={{ fontSize: 16 }}>🏆</span>
               <h3
                 style={{
                   margin: 0,
@@ -568,9 +567,8 @@ export default function TopSellingWuxiaBoard({
                   textShadow: "0 0 18px rgba(250,204,21,0.55)",
                 }}
               >
-                Bảng Phong Thần
+                ⚔️ Thần Binh Phổ
               </h3>
-              <span style={{ fontSize: 16 }}>⚔️</span>
             </div>
             <div
               style={{

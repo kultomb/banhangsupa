@@ -8427,9 +8427,7 @@ class HamobileBanhang {
                         <div class="wuxia-board-hd">
                             <div>
                                 <div style="display:flex;align-items:center;gap:7px">
-                                    <span style="font-size:15px">🏆</span>
-                                    <h3 class="wuxia-board-title">Bảng Phong Thần</h3>
-                                    <span style="font-size:15px">⚔️</span>
+                                    <h3 class="wuxia-board-title">⚔️ Thần Binh Phổ</h3>
                                 </div>
                                 <div class="wuxia-board-sub">Top 5 sản phẩm bán chạy (trong kỳ)</div>
                             </div>
