@@ -59,6 +59,13 @@ export class SupabaseAuthClient implements IAuthClient {
       ) {
         this.setSnapshot(session);
         callback(this.sessionSnapshot);
+        return;
+      }
+      // SIGNED_OUT do user chủ động logout (scope:local) → báo callback để RequireAuth xử lý.
+      // TOKEN_REFRESH_FAILED do mạng chập → KHÔNG cập nhật snapshot, KHÔNG logout oan.
+      if (event === "SIGNED_OUT") {
+        this.setSnapshot(null);
+        callback(null);
       }
     });
     return () => data.subscription.unsubscribe();
@@ -66,8 +73,12 @@ export class SupabaseAuthClient implements IAuthClient {
 
   onAuthStateChanged(callback: (user: AuthSessionUser | null) => void): () => void {
     const { data } = this.sb.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESH_FAILED: mạng tạm lỗi khi auto-refresh → KHÔNG reset snapshot,
+      // KHÔNG gọi callback → tránh logout oan và tránh ảnh hưởng RequireAuth đang chạy.
+      if (event === "TOKEN_REFRESH_FAILED") return;
+
       this.setSnapshot(session);
-      /** Tránh login (và trang khác) chạy lại pipeline restore mỗi lần refresh token → kẹt spinner / gọi API lặp. */
+      /** TOKEN_REFRESHED: tránh login page chạy lại pipeline restore → kẹt spinner. */
       if (event === "TOKEN_REFRESHED") return;
       callback(this.sessionSnapshot);
     });
