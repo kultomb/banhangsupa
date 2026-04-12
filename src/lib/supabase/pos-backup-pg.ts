@@ -83,15 +83,18 @@ function stripDemoSeedFlagFromPayload(value: unknown): unknown {
 }
 
 async function getLatestRow(admin: SupabaseClient, table: PosBackupTable, shopKey: string) {
-  const { data, error } = await admin
-    .from(table)
-    .select("id, data")
-    .eq("shop_key", shopKey)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data as { id: string; data: Record<string, unknown> } | null;
+  // Dùng withRetry để chịu được lỗi mạng thoáng qua — tránh 500 vô lý cho client
+  const res = await withRetry(() =>
+    admin
+      .from(table)
+      .select("id, data")
+      .eq("shop_key", shopKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  );
+  if (res.error) throw res.error;
+  return res.data as { id: string; data: Record<string, unknown> } | null;
 }
 
 async function ensureBackupRow(

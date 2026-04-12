@@ -129,6 +129,10 @@ function LoginContent() {
       setNotice("Vui lòng đăng nhập lại bằng mật khẩu mới.");
       return;
     }
+    if (reason === "device_limit") {
+      setNotice("Tài khoản đã đăng nhập trên 2 thiết bị khác. Thiết bị này đã được đăng xuất tự động.");
+      return;
+    }
     setNotice("");
   }, [searchParams]);
 

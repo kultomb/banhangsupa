@@ -15,6 +15,7 @@ import {
 import { PRESENCE_HEARTBEAT_MS } from "@/lib/presence-config";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
+import { getDeviceId } from "@/lib/device-id";
 
 // ---------------------------------------------------------------------------
 // Profile cache — tránh gọi Supabase lại trên mỗi F5 / token refresh
@@ -299,11 +300,38 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
 
   useEffect(() => {
     if (!ready || !authed || sessionBridgeFailed) return;
-    const ping = () => {
-      void fetch("/api/auth/presence", { method: "POST", credentials: "include" }).catch(() => undefined);
+
+    const ping = async () => {
+      try {
+        const deviceId = getDeviceId();
+        const res = await fetch("/api/auth/presence", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(deviceId ? { deviceId } : {}),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { kicked?: boolean };
+        if (data.kicked) {
+          // Thiết bị này bị kick do thiết bị thứ 3 đăng nhập → buộc đăng xuất
+          try {
+            await getAuthClient().signOut();
+          } catch { /* ignore */ }
+          await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
+          try { sessionStorage.clear(); } catch { /* ignore */ }
+          const loginUrl = "/login?reason=device_limit";
+          try {
+            if (window.top && window.top !== window) { window.top.location.href = loginUrl; return; }
+          } catch { /* ignore */ }
+          window.location.href = loginUrl;
+        }
+      } catch {
+        // Mạng lỗi — bỏ qua, ping lại sau
+      }
     };
-    ping();
-    const id = window.setInterval(ping, PRESENCE_HEARTBEAT_MS);
+
+    void ping();
+    const id = window.setInterval(() => { void ping(); }, PRESENCE_HEARTBEAT_MS);
     return () => window.clearInterval(id);
   }, [ready, authed, sessionBridgeFailed]);
 
@@ -329,14 +357,8 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     let sb: ReturnType<typeof getSupabaseBrowserClient> | null = null;
     try { sb = getSupabaseBrowserClient(); } catch { return; }
     const myJoinedAt = Date.now();
-    let deviceId: string;
-    try {
-      deviceId = sessionStorage.getItem("ha_device_id") ?? "";
-      if (!deviceId) {
-        deviceId = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        sessionStorage.setItem("ha_device_id", deviceId);
-      }
-    } catch { deviceId = Math.random().toString(36).slice(2); }
+    // Dùng getDeviceId() (localStorage, persistent) thay sessionStorage để nhận diện đúng thiết bị
+    const deviceId = getDeviceId() || Math.random().toString(36).slice(2);
 
     const channel = sb.channel(`da-presence-${uid}`, { config: { presence: { key: deviceId } } });
     channel.on("presence", { event: "join" }, ({ newPresences }) => {

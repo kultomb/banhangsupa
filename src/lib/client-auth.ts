@@ -2,6 +2,7 @@
 
 import { getAuthClient } from "@/lib/db";
 import { isProfilePaidForAppAccess } from "@/lib/trial-shop";
+import { getDeviceId } from "@/lib/device-id";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 
@@ -89,9 +90,12 @@ export async function postSessionCookieWithRetries(
   const trimmed = String(idToken || "").trim();
   if (!trimmed) return false;
   const shop = String(options?.shopSlug || "").trim();
-  const body = JSON.stringify(
-    shop ? { idToken: trimmed, shopSlug: shop } : { idToken: trimmed },
-  );
+  const deviceId = getDeviceId();
+  const body = JSON.stringify({
+    idToken: trimmed,
+    ...(shop ? { shopSlug: shop } : {}),
+    ...(deviceId ? { deviceId } : {}),
+  });
   const maxAttempts = 4;
   const baseMs = 300;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
