@@ -313,10 +313,9 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         if (!res.ok) return;
         const data = (await res.json()) as { kicked?: boolean };
         if (data.kicked) {
-          // Thiết bị này bị kick do thiết bị thứ 3 đăng nhập → buộc đăng xuất
-          try {
-            await getAuthClient().signOut();
-          } catch { /* ignore */ }
+          // Thiết bị bị kick: KHÔNG gọi signOut() ở đây vì nó trigger onIdTokenChanged → double-redirect.
+          // Chỉ xóa server cookie; login page sẽ tự signOut() khi đọc reason=device_limit.
+          clearProfileCache();
           await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
           try { sessionStorage.clear(); } catch { /* ignore */ }
           const loginUrl = "/login?reason=device_limit";

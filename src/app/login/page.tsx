@@ -91,6 +91,11 @@ function resetTurnstile(ref: RefObject<LoginTurnstileHandle | null>) {
   ref.current?.reset();
 }
 
+/** Các reason yêu cầu đăng xuất hẳn — không restore session, không redirect về app. */
+function isForceLogoutReason(reason: string) {
+  return reason === "device_limit" || reason === "missing-shop";
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -241,16 +246,28 @@ function LoginContent() {
 
   useEffect(() => {
     let active = true;
+    const reason = new URLSearchParams(window.location.search).get("reason") ?? "";
     /** Tunnel (ngrok) / mạng chặn có thể làm authStateReady() không bao giờ resolve — không kẹt spinner vô hạn. */
     const capMs = 8000;
     void (async () => {
       try {
+        if (isForceLogoutReason(reason)) {
+          // device_limit / missing-shop: buộc signOut trước khi kiểm tra auth
+          // để tránh restoreLoggedInSession chạy và redirect ngược lại vào app.
+          await getAuthClient().signOut().catch(() => undefined);
+          await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
+          if (!active) return;
+          setSessionProbePending(false);
+          setAuthBootstrapping(false);
+          return;
+        }
         await Promise.race([
           getAuthClient().authStateReady().catch(() => undefined),
           new Promise<void>((r) => setTimeout(r, capMs)),
         ]);
       } finally {
         if (!active) return;
+        if (isForceLogoutReason(reason)) return; // đã xử lý ở trên
         const u = getAuthClient().getCurrentUser();
         setSessionProbePending(false);
         if (!u) setAuthBootstrapping(false);
@@ -270,6 +287,9 @@ function LoginContent() {
         setAuthBootstrapping(false);
         return;
       }
+      // Nếu đang ở trang force-logout (device_limit, missing-shop), không restore
+      const reason = new URLSearchParams(window.location.search).get("reason") ?? "";
+      if (isForceLogoutReason(reason)) return;
       void restoreLoggedInSession(user);
     });
     return () => unsub();
